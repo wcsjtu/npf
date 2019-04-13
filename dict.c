@@ -121,9 +121,9 @@ static int dictresize(pDict dict, size_t size){
 	for (ep = oldtable; i > 0; ep++){
 		if (ep->val != NULL){
 			--i;
-			entry = lookup(dict, ep->key, ep->hash);		// ¿Ï¶¨ÊÇ¿Õ²Û
+			entry = lookup(dict, ep->key, ep->hash);		// è‚¯å®šæ˜¯ç©ºæ§½
 			entry->key = ep->key;
-			entry->val = ep->val;				// ÕâÀï²»»áÉêÇëÄÚ´æ, ÒòÎªÔÚ²åÈëµ½oldtableÊ±, ÒÑ¾­ÉêÇë¹ıÁË
+			entry->val = ep->val;				// è¿™é‡Œä¸ä¼šç”³è¯·å†…å­˜, å› ä¸ºåœ¨æ’å…¥åˆ°oldtableæ—¶, å·²ç»ç”³è¯·è¿‡äº†
 			dict->active++;
 			dict->fill++;
 		}
@@ -172,7 +172,7 @@ int del_item(pDict dict, pKey key) {
 	long hashval = dict->type->hash(key);
 	pDictEntry entry = lookup(dict, key, hashval);
 	int resize_flag = 1;
-	if (entry->key != NULL && entry->key != dummyKey){	// Èç¹ûkey¶ÔÓ¦×ÅÓĞĞ§µÄentry, ÔòactiveÒª-1
+	if (entry->key != NULL && entry->key != dummyKey){	// å¦‚æœkeyå¯¹åº”ç€æœ‰æ•ˆçš„entry, åˆ™activeè¦-1
 		dictFreeKey(dict, entry, key);
 		dictFreeVal(dict, entry);
 		entry->key = dummyKey;

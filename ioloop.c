@@ -49,8 +49,9 @@ static void deque_timer_free(void* ep){
     pDequeEntry entry = (pDequeEntry)ep;
     if(entry->val){
         heap_timer_free(entry->val);
+		entry->val = NULL;
     }
-    free(ep);
+    free(entry);
 }
 
 static DequeType deqTimerType = {
@@ -69,23 +70,34 @@ static int setnonblocking( int fd )
 {
 	if( fcntl( fd, F_SETFL, fcntl( fd, F_GETFD, 0 )|O_NONBLOCK ) == -1 )
 	{
-		printf("Set blocking error : %d\n", errno);
+		logerror("Set blocking error : %d\n", errno);
 		return -1;
 	}
 	return 0;
 }
 
-void on_read(Conn* conn){
-    RBSeg seg;
-	while( rb_readable(conn->rbuf, &seg) ){
-		fwrite(seg.buf, seg.len, 1, stdout);
-		rb_start_forward(conn->rbuf, seg.len);
-	}
-}
-
 // 写入缓存
 void write_to_buf(Conn* conn, char* src, size_t len){
-
+	RBSeg seg;
+	size_t wn = 0, n = 0;
+	pIOLoop loop = ioloop_current();
+	if(len <= 0)
+		return;
+	if(!(conn->events & EPOLLOUT)){
+		conn->events |= EPOLLOUT;
+		loop->conn_modregister(loop, conn);
+	}
+	
+	while(wn < len){
+		if(!rb_writable(conn->wbuf, &seg)){
+			loop->serve_once(loop);
+		} else{
+			n = MIN(seg.len, len - wn);
+			memcpy(seg.buf, src + wn, n);
+			rb_end_forward(conn->wbuf, n);
+			wn += n;
+		}
+	}
 }
 
 static Conn* new_conn(FD fd){
@@ -107,8 +119,7 @@ static Conn* new_conn(FD fd){
 		dealloc_ringbuf(conn->rbuf);
 		return NULL;
 	}
-    conn->on_read = on_read;
-    conn->write = write_to_buf;
+    
 	return conn;
 } 
 
@@ -123,8 +134,9 @@ static void dealloc_conn(Conn* conn){
 }
 
 static void close_conn(pIOLoop loop, Conn* conn){
-	logdebug("close fd %d", conn->fd);
+	//("close fd %d", conn->fd);
     loop->conn_unregister(loop, conn);
+	conn->on_close(conn);		//	执行回调
 	close(conn->fd);
 	dealloc_conn(conn);
 }
@@ -138,11 +150,9 @@ static size_t read_conn(pIOLoop loop, Conn* connection){
 		if(rn < 0){
 			if(errno == EAGAIN)
 				break;
-            close_conn(loop, connection);
 			return 0;
 		}
 		else if(rn == 0){
-			close_conn(loop, connection);
 			return 0;
 		}
 		else{
@@ -236,8 +246,12 @@ static void listen_handler(pIOLoop loop, FD fd, int events, int signal){
             logwarn("fail to new conn to fd %d", conn_fd);
             close(conn_fd);
         }
-        conn->events = EPOLLIN | EPOLLET;
+        conn->events = EPOLLIN | EPOLLET | EPOLLERR;
         loop->conn_register(loop, conn);
+		conn->on_read = loop->server->on_read;
+		conn->on_write = loop->server->on_write;
+		conn->on_close = loop->server->on_close;
+		conn->write = write_to_buf;
     }
     if(events & EPOLLERR){
         logerror("listen fd error: errno=%d", errno);
@@ -257,8 +271,14 @@ static void conn_handler(pIOLoop loop, Conn* conn, int events, int signal){
 	}
     if(events & EPOLLIN){
 		rn = read_conn(loop, conn);
-		if(rn > 0)
+		//printf("[read %ld from fd %d\n", rn, conn->fd);
+		if(rn > 0){
 			conn->on_read(conn);
+		}else{
+			close_conn(loop, conn);
+			return;
+		}
+			
 	}
     if(events & EPOLLOUT){
 		size_t nw = write_conn(loop, conn);
@@ -383,6 +403,11 @@ static int server_start(Server* server){
     if(server->listenfd == -1){
         return -1;
     }
+	if(setsockopt(server->listenfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
+		logerror("set REUSE_ADDR to listen fd error: %d", errno);
+		return -1;
+	}
+
     if(listen(server->listenfd, server->backlog) == -1){
 		logerror("listen port %d error: errno=%d", server->port, errno);
 		return -1;
@@ -409,7 +434,7 @@ static Server* server_listen(Server* server, unsigned short backlog){
     return server;
 }
 
-Server* new_server(){
+Server* new_server(onfunc on_read, onfunc on_write, onfunc on_close){
     Server* server = (Server*)malloc(sizeof(Server));
     if(server == NULL){
         logerror("Out of memory when create new server");
@@ -418,6 +443,9 @@ Server* new_server(){
     server->start = server_start;
     server->bind = server_bind;
     server->listen = server_listen;
+	server->on_read = on_read;
+	server->on_write = on_write;
+	server->on_close = on_close;
     return server;
 }
 
@@ -485,8 +513,7 @@ void cb(void* vars, int signal){
 }
 
 
-void test_timer(pIOLoop loop){
-    int delay = 5000;
+void test_timer(pIOLoop loop, long delay){
     pTimer timer = (pTimer)malloc(sizeof(Timer));
     timer->callback = cb;
     timer->due = tsnow() + delay;
@@ -496,12 +523,31 @@ void test_timer(pIOLoop loop){
 
 }
 
+void on_read(Conn* conn){
+	//printf("fd %d on read]\n", conn->fd);
+    RBSeg seg;
+	conn->write(conn, "[Server]", 8);
+	conn->write(conn, strnow(), TIME_BUF_SIZE);
+	while( rb_readable(conn->rbuf, &seg) ){
+		fwrite(seg.buf, seg.len, 1, stdout);
+		rb_start_forward(conn->rbuf, seg.len);
+		conn->write(conn, seg.buf, seg.len);
+	}
+}
+
+void on_write(Conn* conn){
+	logdebug("all data were written to buffer");
+}
+
+void on_close(Conn* conn){
+	logdebug("conn closed!");
+}
 
 #endif
 
 int main(){
-    Server* tcpserver = new_server();
-    tcpserver->bind(tcpserver, 0, 8080)->listen(tcpserver, 128);
+    Server* tcpserver = new_server(on_read, on_write, on_close);
+    tcpserver->bind(tcpserver, 0, 28080)->listen(tcpserver, 128);
 
     if(tcpserver->start(tcpserver) == -1){
         dealloc_server(tcpserver);
@@ -511,7 +557,13 @@ int main(){
     IOLoop* loop = ioloop_current();
 
     #ifdef TEST_TIMER
-    test_timer(loop);
+	long mask = (1 << 16) - 1;
+
+	for(int i = 0; i< 1000; i ++){
+		long delay = rand();
+    	test_timer(loop, delay & mask);
+	}
+	
     #endif
 
     loop->serve_forever(loop);

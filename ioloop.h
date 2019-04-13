@@ -6,6 +6,7 @@
 #include "dict.h"
 #include "heap.h"
 #include "ringbuf.h"
+#include "globals.h"
 
 typedef int FD;
 typedef void(*handler)(void* vars, int signal);
@@ -24,9 +25,14 @@ typedef struct _conn{
 	pRingBuf wbuf;
 
     void(*on_read)(struct _conn* conn);
+    void(*on_write)(struct _conn* conn);
+    void(*on_close)(struct _conn* conn);
     void(*write)(struct _conn* conn, char* src, size_t len);
 
 } Conn;
+
+typedef void(*onfunc)(Conn* conn);
+typedef void(*write_conn_func)(Conn* conn, char* src, size_t len);
 
 typedef struct  _server{
     unsigned short port;
@@ -37,6 +43,11 @@ typedef struct  _server{
     int(*start)(struct _server* server);
     struct _server*(*bind)(struct _server* server, in_addr_t addr, unsigned short port);
     struct _server*(*listen)(struct _server* server, unsigned short backlog);
+
+    onfunc on_read;
+    onfunc on_write;
+    onfunc on_close;
+
 } Server;
 
 
@@ -70,6 +81,10 @@ typedef struct _ioloop{
 extern IOLoop ioloop;
 
 pIOLoop ioloop_current();
+void dealloc_ioloop(IOLoop* loop);
+
+void dealloc_server(Server* server);
+Server* new_server(onfunc on_read, onfunc on_write, onfunc on_close);
 
 /*
 

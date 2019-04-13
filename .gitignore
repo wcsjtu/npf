@@ -1,0 +1,5 @@
+.vscode/**
+*.*sdf
+*.vcxproj
+*.vcxproj.filters
+*.sln

@@ -6,21 +6,23 @@
 
 pRingBuf new_ringbuf(size_t size){
 
-    pRingBuf buf = NULL;
+    pRingBuf rbuf = NULL;
+	char* buf = NULL;
 
-    if(size >= MAX_RINGBUF_SIZE 
-        || (buf = (pRingBuf)malloc(sizeof(RingBuf))) == NULL
-        || ( (buf->buf = (char*)malloc(sizeof(char) * size) ) == NULL)){
-            logwarn("Out of memory when new ring buffer with size %lu", size);
-            if(buf)
-                free(buf);
-            return NULL;
+    if(size >= MAX_RINGBUF_SIZE || ( (buf = (char*)malloc(sizeof(char) * size) ) == NULL)){
+		logwarn("Out of memory when new ring buffer with size %lu", size);
+        return NULL;
         }
-    buf->size = size;
-    buf->end = 0;
-    buf->start = 0;
-	memset(buf->buf, 0, size);
-    return buf;
+	if((rbuf = (pRingBuf)malloc(sizeof(RingBuf)) ) == NULL){
+		logwarn("Out of memory when new ring buffer with size %lu", size);
+		free(buf);
+	}
+    rbuf->size = size;
+    rbuf->end = 0;
+    rbuf->start = 0;
+	rbuf->buf = buf;
+	memset(rbuf->buf, 0, size);
+    return rbuf;
 }
 
 void dealloc_ringbuf(pRingBuf buf){

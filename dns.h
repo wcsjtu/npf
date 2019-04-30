@@ -18,7 +18,7 @@ typedef char* sds;
 sds new_sds(size_t sz);
 void dealloc_sds(sds s);
 
-#define SDS_LEN(s) ( ((SDS*)(s - sizeof(SDS)))->sz )
+#define SDS_LEN(s) ( ((SDS*)((char*)s - sizeof(SDS)))->sz )
 
 /*
 
@@ -138,6 +138,10 @@ typedef struct _ipaddr{
 
 typedef char* ipaddr;
 
+#define IPADDR_TO_RR(addr) ((pRR)((char*)addr - sizeof(RR)))
+
+#define IPADDR_QTYPE(addr) ( IPADDR_TO_RR(addr)->qtype )
+
 ipaddr new_ipaddr(sds domain, unsigned char qt, unsigned char sz);
 void dealloc_ipaddr(ipaddr);
 
@@ -147,6 +151,15 @@ typedef struct  _parser{
     DNSheader header;
     char* raw;
 } Parser, *pParser;
+
+struct _iplist{
+    size_t sz;
+    ipaddr list[];
+} ;
+
+typedef ipaddr* IPlist;
+
+#define IPLIST_SIZE(list) ( ((struct _iplist* )((char*)list - sizeof(struct _iplist)))->sz )
 
 #define DNS_REQ_REQUIRED_RECUSION 1
 #define DNS_STANDARD_REQ 0
@@ -173,5 +186,5 @@ char* build_dns_request(const char* hostname, size_t length, unsigned short qtyp
 
 pParser new_dns_parser(char* raw, size_t length);
 
-
+IPlist dns_parse_response(Parser* parser);
 #endif

@@ -3,7 +3,22 @@
 #include "dns.h"
 #include "util.h"
 
-//static char DNS_REQ_HEADER[] = {1, 0, 0, 1, 0, 0, 0, 0, 0, 0 };
+IPlist new_iplist(size_t sz){
+    struct _iplist* list = (struct _iplist*)malloc(sizeof(struct _iplist) + sz);
+    if (list == NULL){
+        logwarn("Out of memory when create IPlist with size %lu", sz);
+        return NULL;
+    }
+    list->sz = sz;
+    return list->list;
+}
+
+// 只会释放容器, 不会释放容器内的元素
+void dealloc_iplist(IPlist list){
+    struct _iplist* iplist = (struct _iplist* )(list - sizeof(struct _iplist));
+    free(iplist);
+}
+
 
 sds new_sds(size_t sz){
     SDS* s = (SDS*)malloc(sizeof(SDS) + sz);
@@ -30,6 +45,7 @@ ipaddr new_ipaddr(sds domain, unsigned char qt, unsigned char sz){
     rr->qtype = qt;
     rr->sz = sz;
     rr->domain = domain;
+    memset(rr->addr, 0, sz);
     return rr->addr;
 }
 
@@ -253,7 +269,7 @@ ipaddr* dns_parse_response(pParser parser){
         logwarn("dns query name parse failed");
         return NULL;
     }
-    ipaddr* list = (ipaddr*)malloc(sizeof(ipaddr)*rrs);
+    IPlist list = new_iplist(rrs);
     if(!list){
         logwarn("create new ipaddr list with size %lu failed", rrs);
         dealloc_sds(query);
@@ -271,8 +287,6 @@ ipaddr* dns_parse_response(pParser parser){
     dealloc_sds(query);     // TODO 直接把域名释放了, 是不是不太好
     return list;
 }
-
-
 
 pParser new_dns_parser(char* raw, size_t length){
     pParser parser = NULL;
@@ -318,8 +332,15 @@ char peer1_0[] = { /* Packet 26 */
 int main(){
 
     pParser parser = new_dns_parser(peer1_0, 21 * 8 + 1);
-    ipaddr* res = dns_parse_response(parser);
-
+    IPlist res = dns_parse_response(parser);
+    ipaddr ip;
+    
+    size_t sz = IPLIST_SIZE(res);
+    for(size_t i = 0; i< IPLIST_SIZE(res); i ++){
+        ip = res[i];
+        unsigned short qtype = IPADDR_QTYPE(ip);
+        logdebug("%s", ip);
+    }
     return 0;
 }
 

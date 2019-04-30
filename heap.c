@@ -123,7 +123,7 @@ size_t heapify(pHeap heap){
 	for (size_t i = 0; i < used; i++){
 		entry = heap->buf[i];
 		if (invalidHeapEntry(heap, entry))
-			continue;		// Å×ÆúÎÞÐ§µÄentry
+			continue;		// æŠ›å¼ƒæ— æ•ˆçš„entry
 		heap_push(heap, entry);
 	}
 	heap_shrink(heap);

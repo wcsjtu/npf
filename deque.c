@@ -95,6 +95,10 @@ pDequeEntry deque_pop(pDeque deque){
 	deque->count--;
 	res->prev = NULL;
 	res->next = NULL;
+	if(deque->count==0){
+		deque->head = NULL;
+		deque->tail = NULL;
+	}
 	return res;
 }
 
@@ -113,6 +117,10 @@ pDequeEntry deque_popleft(pDeque deque){
 	deque->count--;
 	res->prev = NULL;
 	res->next = NULL;
+	if(deque->count==0){
+		deque->head = NULL;
+		deque->tail = NULL;
+	}
 	return res;
 }
 

@@ -565,7 +565,7 @@ int main(){
 	}
 	
     #endif
-
+	set_loglevel(LOGLV_INFO);
     loop->serve_forever(loop);
     dealloc_ioloop(loop);
 }

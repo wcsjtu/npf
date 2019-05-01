@@ -129,8 +129,8 @@ typedef struct _dnsheader{
     } while(0)
 
 typedef struct _ipaddr{
-    unsigned char qtype;    // 最大28, AAAA
-    unsigned char sz;       // 最大 46 + 1
+    unsigned short qtype;    // 最大28, AAAA
+    unsigned short sz;       // 最大 46 + 1
     unsigned int ttl;
     sds domain;
     char addr[];

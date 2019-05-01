@@ -214,7 +214,7 @@ static void __dns_parse_rrs(Parser* parser, ipaddr* list, size_t n){
     unsigned short qtype = 0, qcls = 0, data_length = 0;
     unsigned int ttl = 0;
     int af = 0;
-
+    size_t tmp = 0;
     ipaddr addr = NULL;
 
     for(size_t i = 0; i< n; i++){
@@ -240,11 +240,15 @@ static void __dns_parse_rrs(Parser* parser, ipaddr* list, size_t n){
             break;
         default:
             logdebug("qtype == %d", qtype);
-            addr = new_ipaddr(query, qtype, data_length);
             cname = dns_parse_query(parser);
+            if(!cname){
+                // TODO
+            }
+            addr = new_ipaddr(query, qtype, SDS_LEN(cname));
             if (cname){
-                memcpy(addr, cname, SDS_LEN(cname));
-                //dealloc_sds(cname);
+                tmp = SDS_LEN(cname);
+                memcpy(addr, cname, tmp);
+                dealloc_sds(cname);
             }
             break;
         }

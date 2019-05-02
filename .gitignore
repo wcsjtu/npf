@@ -4,3 +4,5 @@
 *.vcxproj.filters
 *.sln
 *.out
+.vs/*
+Debug/*

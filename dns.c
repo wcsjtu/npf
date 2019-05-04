@@ -13,7 +13,7 @@ IPlist new_iplist(size_t sz){
     return list->list;
 }
 
-// 只会释放容器, 不会释放容器内的元素
+// 会释放容器, 也会释放容器内的元素
 void dealloc_iplist(IPlist list){
     struct _iplist* iplist = (struct _iplist* )(list - sizeof(struct _iplist));
     free(iplist);
@@ -66,12 +66,13 @@ struct DomainPart{
     unsigned char length;
 };
 
-char* build_dns_request(const char* hostname, size_t length, unsigned short qtype, unsigned short id){
+// 返回的req是malloc出来的, 所以用完后记得用dealloc_sds释放内存
+sds build_dns_request(const char* hostname, size_t length, unsigned short qtype, unsigned short id){
     char* req = NULL, * res=NULL;
     char end = 0, start = 0, part_len = 0;
     unsigned short qcls = htons(QCLASS_IN);
     qtype = htons(qtype);
-    if(length >= MAX_HOST_LENGTH || (req = malloc( DNS_REQ_SIZE(length))) == NULL){
+    if(length >= MAX_HOST_LENGTH || (req = new_sds(DNS_REQ_SIZE(length))) == NULL){
         logwarn("Out of memory when build dns request with length %lu", length);
         return NULL;
     }
@@ -258,7 +259,7 @@ static void __dns_parse_rrs(Parser* parser, ipaddr* list, size_t n){
     return;
 }
 
-
+// 容器是malloc出来的, 用完记得用dealloc_iplist来释放内存
 ipaddr* dns_parse_response(pParser parser){
     sds query = NULL;
     size_t rrs = 0;
@@ -309,6 +310,10 @@ pParser new_dns_parser(char* raw, size_t length){
     return parser;
 }
 
+void dealloc_dnsparser(pParser parser){
+    if(parser)
+        free(parser);
+}
 
 //#define TEST_DNS
 

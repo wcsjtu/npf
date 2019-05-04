@@ -159,6 +159,8 @@ struct _iplist{
 
 typedef ipaddr* IPlist;
 
+void dealloc_iplist(IPlist list);
+
 #define IPLIST_SIZE(list) ( ((struct _iplist* )((char*)list - sizeof(struct _iplist)))->sz )
 
 #define DNS_REQ_REQUIRED_RECUSION 1
@@ -182,9 +184,10 @@ typedef ipaddr* IPlist;
 	DNS_REQ_TAIL_LEN + (host_length) + 1)	//n个点对应着n+1段的长度, 再加上\x00结束符
 
 
-char* build_dns_request(const char* hostname, size_t length, unsigned short qtype, unsigned short id);
+sds build_dns_request(const char* hostname, size_t length, unsigned short qtype, unsigned short id);
 
 pParser new_dns_parser(char* raw, size_t length);
+void dealloc_dnsparser(pParser parser);
 
 IPlist dns_parse_response(Parser* parser);
 #endif

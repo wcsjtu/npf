@@ -20,7 +20,7 @@ struct ConnCache _tcp_conn_cache = {0};
 struct ConnCache _udp_conn_cache = {0};
 
 
-static int setnonblocking( int fd )
+int setnonblocking(FD fd )
 {
 	if( fcntl( fd, F_SETFL, fcntl( fd, F_GETFD, 0 )|O_NONBLOCK ) == -1 )
 	{
@@ -59,7 +59,7 @@ static void write_to_buf(Conn* conn, char* src, size_t len){
 
 static Conn* _new_conn(
         FD fd, 
-        void(*handler)(void* loop, Conn* conn, int events, int signal),
+        events_handler handler,
         size_t rbsize,
         size_t wbsize){
     Conn* conn = NULL;
@@ -124,7 +124,7 @@ static void _reset_conn(Conn* conn){
 }
 
 // 从cache中/或者new一个conn实例
-static Conn* _get_conn(struct ConnCache* cache, FD fd, void(*handler)(void* loop, Conn* conn, int events, int signal)){
+static Conn* _get_conn(struct ConnCache* cache, FD fd, events_handler handler){
     Conn* res = NULL;
     if(cache->deq->count){
         res = (Conn*)(deque_pop(cache->deq)->val);
@@ -139,21 +139,29 @@ static Conn* _get_conn(struct ConnCache* cache, FD fd, void(*handler)(void* loop
     }
     
     if(res)
-        cache->capacity--;
+        cache->available--;
     res->fd = fd;
     res->handler = handler;
     return res;
 }
 
+Conn* get_tcpconn(FD fd, events_handler handler){
+    return _get_conn(&_tcp_conn_cache, fd, handler);
+}
+
+Conn* get_udpconn(FD fd, events_handler handler){
+    return _get_conn(&_udp_conn_cache, fd, handler);
+}
+
 // 将已经关闭的conn放回cache, 必须是已经关闭的
 static void _putback_conn(struct ConnCache* cache, Conn* conn){
-    if(cache->capacity < 0){
+    if(cache->available < 0){
         _dealloc_conn(conn);
     } else{
         _reset_conn(conn);
         deque_append(cache->deq, (void*)conn);
     }
-    cache->capacity ++ ;
+    cache->available ++ ;
 }
 
 // 将已经关闭的conn放回cache, 必须是已经关闭的
@@ -403,7 +411,9 @@ void close_udpconn(void* _loop, Conn* conn){
 	
 }
 
-static size_t _read_udpconn(pIOLoop loop, Conn* conn){
+// 将数据从socket读到read buffer中
+size_t read_udpconn(void* _loop, Conn* conn){
+    pIOLoop loop = (pIOLoop)_loop;
     RBSeg seg;
 	long rn = 0, total = 0;
 	int fd = conn->fd;
@@ -429,7 +439,8 @@ static size_t _read_udpconn(pIOLoop loop, Conn* conn){
 	return total;
 }
 
-static void _write_to_udp(Conn* conn, char* src, size_t len){
+// 因为udp conn不提供write buffer, 所以调用这个函数, 会直接写socket
+void write_udpconn(Conn* conn, char* src, size_t len){
     // TODO 要不要判断len是否大于UDP包的最大长度
     if(len > MAX_UDP_PACKAGE_SIZE){
         logwarn("size of package which need be sent by udp exceeds MAX_UDP_PACKAGE_SIZE");
@@ -457,9 +468,9 @@ void udp_listen_handler(void* _loop, Conn* sconn, int events, int signal){
         cconn->on_read = loop->udpserver->on_read;
         cconn->on_write = loop->udpserver->on_write;
         cconn->on_close = loop->udpserver->on_close;
-        cconn->write = _write_to_udp;
+        cconn->write = write_udpconn;
 
-        long rn = _read_udpconn(loop, cconn);
+        long rn = read_udpconn(loop, cconn);
         if (rn > 0){
             cconn->on_read(cconn);
         }
@@ -521,11 +532,11 @@ static DequeType _connDeqType = {
     _free_conn
 };
 
-void init_conn_cache(long capacity){
-    _tcp_conn_cache.capacity = capacity;
+void init_conn_cache(long available){
+    _tcp_conn_cache.available = available;
     _tcp_conn_cache.deq = new_deque(&_connDeqType);
 
-    _udp_conn_cache.capacity = capacity;
+    _udp_conn_cache.available = available;
     _udp_conn_cache.deq = new_deque(&_connDeqType);
 }
 

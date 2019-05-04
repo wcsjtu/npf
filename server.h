@@ -25,9 +25,9 @@ typedef struct _conn{
 } Conn;
 
 struct ConnCache{
-    // 这个capacity是个动态平衡的指标。 每get一个conn, 就会--, put一个就会++
-    // 当capacity < 0 时, 每次put/get都会分配/释放内存, 所以要根据业务场景, 选择合适的capacity
-    long capacity;
+    // 这个available是个动态平衡的指标。 每get一个conn, 就会--, put一个就会++
+    // 当available < 0 时, 每次put/get都会分配/释放内存, 所以要根据业务场景, 选择合适的初始available
+    long available;
     pDeque deq;
 };
 
@@ -66,6 +66,8 @@ typedef struct _udpserver{
 
 }UDPServer;
 
+int setnonblocking(FD fd );
+
 TCPServer* new_tcpserver(onfunc on_read, onfunc on_write, onfunc on_close);
 void dealloc_tcpserver(TCPServer* server);
 
@@ -73,7 +75,7 @@ UDPServer* new_udpserver(onfunc on_read, onfunc on_write, onfunc on_close);
 void dealloc_udpserver(UDPServer* server);
 
 
-void init_conn_cache(long capacity);
+void init_conn_cache(long available);
 
 
 // 将已经关闭的conn放回cache, 必须是已经关闭的
@@ -83,7 +85,14 @@ void putback_tcpconn(Conn* conn);
 // udpconn在用完之后, 一定要记得放回去, 不然会内存泄露
 void putback_udpconn(Conn* conn);
 
+typedef void(*events_handler)(void* loop, Conn* conn, int events, int signal);
+
+Conn* get_tcpconn(FD fd, events_handler handler);
+Conn* get_udpconn(FD fd, events_handler handler);
+
 void listen_handler(void* loop, Conn* conn, int events, int signal);
 void conn_handler(void* loop, Conn* conn, int events, int signal);
 
+size_t read_udpconn(void* loop, Conn* conn);
+void write_udpconn(Conn* conn, char* src, size_t len);
 #endif

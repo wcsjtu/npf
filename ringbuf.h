@@ -26,4 +26,6 @@ int rb_readable(pRingBuf buf, RBSeg* seg);
 void rb_start_forward(pRingBuf buf, size_t nbytes);
 void rb_end_forward(pRingBuf buf, size_t nbytes);
 
+#define REST_RINGBUF(bufptr) (bufptr->start=bufptr->end=0)
+
 #endif

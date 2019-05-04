@@ -13,9 +13,9 @@ IPlist new_iplist(size_t sz){
     return list->list;
 }
 
-// 会释放容器, 也会释放容器内的元素
+// 释放容器, 但是不会释放容器内的元素
 void dealloc_iplist(IPlist list){
-    struct _iplist* iplist = (struct _iplist* )(list - sizeof(struct _iplist) * sizeof(ipaddr));
+    struct _iplist* iplist = (struct _iplist* )((char*)list - sizeof(struct _iplist));
     free(iplist);
 }
 

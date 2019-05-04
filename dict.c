@@ -14,7 +14,6 @@ __thread char nowbuf[TIME_BUF_SIZE] = { '\0' };
 pDict new_dict(size_t size, pDictType type) {
 	pDict dict = NULL;
 	pDictEntry table;
-	size_t i = 0;
 	if (size > MAX_DICT_SIZE || 
 		(dict = (pDict)malloc(sizeof(Dict))) == NULL ||
 		(table = (pDictEntry)malloc(sizeof(DictEntry)* size)) == NULL) {

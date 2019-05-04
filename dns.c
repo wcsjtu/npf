@@ -83,7 +83,7 @@ char* build_dns_request(const char* hostname, size_t length, unsigned short qtyp
 
     // build request body
     while (end <= length){
-        if(hostname[end] == '.' || end == length){
+        if(*(hostname + end) == '.' || end == length){
             part_len = end - start;
             if (part_len >= MAX_DNS_PART_LEN){
                 logwarn("length of domain name part exceeds MAX_DNS_PART_LEN");
@@ -213,7 +213,6 @@ static void __dns_parse_rrs(Parser* parser, ipaddr* list, size_t n){
     sds query = NULL, cname = NULL;
     unsigned short qtype = 0, qcls = 0, data_length = 0;
     unsigned int ttl = 0;
-    int af = 0;
     size_t tmp = 0;
     ipaddr addr = NULL;
 

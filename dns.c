@@ -15,7 +15,7 @@ IPlist new_iplist(size_t sz){
 
 // 会释放容器, 也会释放容器内的元素
 void dealloc_iplist(IPlist list){
-    struct _iplist* iplist = (struct _iplist* )(list - sizeof(struct _iplist));
+    struct _iplist* iplist = (struct _iplist* )(list - sizeof(struct _iplist) * sizeof(ipaddr));
     free(iplist);
 }
 
@@ -298,6 +298,7 @@ ipaddr* dns_parse_response(pParser parser){
     return list;
 }
 
+// parser是malloc出来的, 用完记得用dealloc_dnsparser释放
 pParser new_dns_parser(char* raw, size_t length){
     pParser parser = NULL;
     if ((parser = malloc(sizeof(Parser))) == NULL){

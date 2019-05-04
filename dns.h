@@ -102,21 +102,26 @@ ANY         255
 
 typedef struct _dnsheader{
     unsigned short id;
-    unsigned char qr          : 1;
-    unsigned char opcode      : 4;
-    unsigned char aa          : 1;
-    unsigned char tc          : 1;
+
+    // 因为地址增长方向相反, 所以只能把字段定义倒过来
     unsigned char rd          : 1;
-    unsigned char ra          : 1;
-    unsigned char reserved    : 3;
+    unsigned char tc          : 1;
+    unsigned char aa          : 1;
+    unsigned char opcode      : 4;
+    unsigned char qr          : 1;
+    
     unsigned char rcode       : 4;
+    unsigned char reserved    : 3;
+    unsigned char ra          : 1;
+    
+    
     unsigned short query_count;
     unsigned short rr_count;
     unsigned short authrr_count;
     unsigned short addrr_count;
 } DNSheader;
 
-#define INIT_REQ_HEADER(id, op, rd) {id, 0, op, 0, 0, rd, 0, 0, 0, 1, 0, 0, 0}
+#define INIT_REQ_HEADER(id, op, rd) {id, rd, 0, 0, op, 0,  0, 0, 0, 1, 0, 0, 0} 
 
 #define COPY_HEADER_TO_BUF(buf, phdr) do {\
     unsigned short tmp = htons((phdr)->id); memcpy(buf, &tmp, 2); buf+=2;\

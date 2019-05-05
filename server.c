@@ -174,7 +174,7 @@ void putback_udpconn(Conn* conn){
     _putback_conn(&_udp_conn_cache, conn);
 }
 
-static void _close_conn(void* _loop, Conn* conn){
+static void _close_tcpconn(void* _loop, Conn* conn){
 
     pIOLoop loop = (pIOLoop)_loop;
     loop->conn_unregister(loop, conn);
@@ -182,7 +182,7 @@ static void _close_conn(void* _loop, Conn* conn){
 	close(conn->fd);
 }
 
-static size_t _read_conn(pIOLoop loop, Conn* connection){
+static size_t _read_tcpconn(pIOLoop loop, Conn* connection){
 	RBSeg seg;
 	long rn = 0, total = 0;
 	int fd = connection->fd;
@@ -206,7 +206,7 @@ static size_t _read_conn(pIOLoop loop, Conn* connection){
 	return total;
 }
 
-static size_t _write_conn(pIOLoop loop, Conn* connection){
+static size_t _write_tcpconn(pIOLoop loop, Conn* connection){
 	RBSeg seg;
 	long wn = 0, total=0;
 	int fd = connection->fd;
@@ -216,7 +216,7 @@ static size_t _write_conn(pIOLoop loop, Conn* connection){
 			if(errno == EAGAIN){
 				break;
 			}
-			_close_conn(loop, connection);
+			_close_tcpconn(loop, connection);
             _putback_conn(&_tcp_conn_cache, connection);
 			return 0;
 		}
@@ -225,8 +225,6 @@ static size_t _write_conn(pIOLoop loop, Conn* connection){
 	}
 	return total;
 }
-
-
 
 static FD _create_bind(in_addr_t addr, int socktype, unsigned short port){
     FD listen_fd;
@@ -312,15 +310,11 @@ void dealloc_tcpserver(TCPServer* server){
 
 // UDPServer define
 
-
-
 static UDPServer* _udpserver_bind(UDPServer* server, in_addr_t addr, unsigned short port){
     server->addr = addr;
     server->port = port;
     return server;
 }
-
-
 
 void dealloc_udpserver(UDPServer* server){
     if(server->_sconn){
@@ -328,8 +322,6 @@ void dealloc_udpserver(UDPServer* server){
     }
     free(server);
 }
-
-
 
 void listen_handler(void* _loop, Conn* sconn, int events, int signal){
     pIOLoop loop = (pIOLoop)_loop;
@@ -370,24 +362,24 @@ void conn_handler(void* _loop, Conn* conn, int events, int signal){
     // event handle
     if(events & EPOLLERR){
 		logerror("fd %d error: errno=%d", fd, errno);
-		_close_conn(_loop, conn);
+		_close_tcpconn(_loop, conn);
         _putback_conn(&_tcp_conn_cache, conn);
 		return;
 	}
 
     if(events & EPOLLIN){
-		rn = _read_conn(loop, conn);
+		rn = _read_tcpconn(loop, conn);
 		if(rn > 0){
 			conn->on_read(conn);
 		}else{
-			_close_conn(_loop, conn);
+			_close_tcpconn(_loop, conn);
             _putback_conn(&_tcp_conn_cache, conn);
 			return;
 		}
 	}
 
     if(events & EPOLLOUT){
-		size_t nw = _write_conn(loop, conn);
+		size_t nw = _write_tcpconn(loop, conn);
 	}
 
     // new event
@@ -454,7 +446,6 @@ void write_udpconn(Conn* conn, char* src, size_t len){
     }
 }
 
-
 void udp_listen_handler(void* _loop, Conn* sconn, int events, int signal){
     pIOLoop loop = (pIOLoop)_loop;
     Conn* cconn = NULL;
@@ -516,20 +507,14 @@ UDPServer* new_udpserver(onfunc on_read, onfunc on_write, onfunc on_close){
 
 // init func
 
-static void _free_conn(void* _conn){
+static void _deq_free_conn(void* _conn){
     Conn* conn = (Conn*)_conn;
-    if(conn->rbuf){
-		dealloc_ringbuf(conn->rbuf);
-	}
-	if(conn->wbuf){
-		dealloc_ringbuf(conn->wbuf);
-	}
-	free(conn);
+    _dealloc_conn(conn);
 }
 
 static DequeType _connDeqType = {
     NULL,
-    _free_conn
+    _deq_free_conn
 };
 
 void init_conn_cache(long available){

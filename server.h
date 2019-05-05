@@ -76,7 +76,7 @@ void dealloc_udpserver(UDPServer* server);
 
 
 void init_conn_cache(long available);
-
+void free_conn_cache();
 
 // 将已经关闭的conn放回cache, 必须是已经关闭的
 void putback_tcpconn(Conn* conn);

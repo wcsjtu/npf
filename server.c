@@ -540,16 +540,16 @@ void init_conn_cache(long available){
     _udp_conn_cache.deq = new_deque(&_connDeqType);
 }
 
-// static void _free_conn_cache(){
-//     const int cache_list_count = 2;
-//     struct ConnCache list[cache_list_count] = {_tcp_conn_cache, _udp_conn_cache};
-//     int i = 0;
-//     struct ConnCache cache;
-//     while(i < cache_list_count){
-//         cache = list[i];
-//         while(cache.deq->count){
-//             dequeFreeEntry(cache.deq, deque_popleft(cache.deq));
-//         }
-//         i++;
-//     }
-// }
+void free_conn_cache(){
+    const int cache_list_count = 2;
+    struct ConnCache list[] = {_tcp_conn_cache, _udp_conn_cache};
+    int i = 0;
+    struct ConnCache cache;
+    while(i < cache_list_count){
+        cache = list[i];
+        while(cache.deq->count){
+            dequeFreeEntry(cache.deq, deque_popleft(cache.deq));
+        }
+        i++;
+    }
+}

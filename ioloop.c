@@ -129,9 +129,10 @@ static int conn_modregister(pIOLoop loop, Conn* conn){
 }
 
 static void conn_unregister(pIOLoop loop, Conn* conn){
-    int fd = conn->fd;
-	if(epoll_ctl(loop->efd, EPOLL_CTL_DEL, fd, NULL) < 0){
-		logwarn("unregister fd %d error, errno: %d", fd, errno);
+	if(!conn->registered)
+		return;
+	if(epoll_ctl(loop->efd, EPOLL_CTL_DEL, conn->fd, NULL) < 0){
+		logwarn("unregister fd %d error, errno: %d", conn->fd, errno);
 	} else{
 		loop->fd_count--;
 	}
@@ -152,6 +153,7 @@ static int conn_register(pIOLoop loop, Conn* conn){
 		return 0;
 	}
 	loop->fd_count++;
+	conn->registered = 1;
 	return 1;
 }
 

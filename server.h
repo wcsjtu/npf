@@ -11,6 +11,7 @@ typedef struct _conn{
 
 	FD fd;
 	int events;
+    int registered;     // 是否注册到了epoll
 	pRingBuf rbuf;
 	pRingBuf wbuf;
 

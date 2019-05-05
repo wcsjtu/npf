@@ -10,10 +10,10 @@
 #include "dns.h"
 
 
-void on_dns_response(Conn* conn){
+void on_dns_response(UDPClient* cli){
     RBSeg seg;
     ipaddr ip;
-    if(!rb_readable(conn->rbuf, &seg)){
+    if(!rb_readable(cli->rbuf, &seg)){
         return;
     }
     pParser parser =  new_dns_parser(seg.buf, seg.len);
@@ -28,7 +28,7 @@ void on_dns_response(Conn* conn){
     dealloc_iplist(res);
     dealloc_dnsparser(parser);
 
-    close_udp_client(ioloop_current(), conn);
+    udpclient_close(ioloop_current(), cli);
 }
 
 
@@ -39,8 +39,8 @@ void test_dns(void* sdshost, int signal){
         logwarn("ERROR!");
         return;
     }
-    Conn* conn = new_udp_client("10.246.3.33", 53, AF_INET);
-    send_udp(conn, req, SDS_LEN(req), on_dns_response);
+    UDPClient* cli = new_udp_client("10.246.3.33", 53, AF_INET);
+    udpclient_send(cli, req, SDS_LEN(req), on_dns_response);
 
     dealloc_sds(sdshost);
     dealloc_sds(req);
@@ -79,6 +79,7 @@ void on_udpread(Conn* conn){
 		rb_start_forward(conn->rbuf, seg.len);
 		conn->write(conn, seg.buf, seg.len);
 	}
+    close_udpconn(ioloop_current(), conn);
 	putback_udpconn(conn);
 }
 

@@ -34,9 +34,9 @@ typedef struct _ioloop{
 
     void(*run_ready)(struct _ioloop* loop);
     void(*check_due_timer)(struct _ioloop* loop);
-    void(*conn_register)(struct _ioloop* loop, Conn* conn);
+    int(*conn_register)(struct _ioloop* loop, Conn* conn);
     void(*conn_unregister)(struct _ioloop* loop, Conn* conn);
-    void(*conn_modregister)(struct _ioloop* loop, Conn* conn);
+    int(*conn_modregister)(struct _ioloop* loop, Conn* conn);
 
     void(*serve_once)(struct _ioloop* loop);
     void(*serve_forever)(struct _ioloop* loop);
@@ -74,7 +74,7 @@ void dealloc_ioloop(IOLoop* loop);
     服务退出时, 要做的事情:
         1. 清理loop->timer, 类型是Heap类型
         2. 清理loop->ready, 类型是Deque类型
-        3. 清理ConnCache
+        3. 清理ConnCache。UDPConnCache中的fd都没关闭. TCPConnCache中的fd都是关闭了的
         4. 主动关闭所有连接(TODO, 该怎么搞)
         5. 清理loop->tcpserver, loop->udpserver
         6. ...TODO

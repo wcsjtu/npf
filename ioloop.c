@@ -99,10 +99,16 @@ static void serve_once(pIOLoop loop){
 static void serve_forever(pIOLoop loop){
 
     if(loop->tcpserver){
-        loop->conn_register(loop, loop->tcpserver->_sconn);
+        if(!loop->conn_register(loop, loop->tcpserver->_sconn)){
+			logerror("register TCP server fd faield: %d", errno);
+			exit(-1);
+		}
     }
 	if(loop->udpserver){
-        loop->conn_register(loop, loop->udpserver->_sconn);
+        if(!loop->conn_register(loop, loop->udpserver->_sconn)){
+			logerror("register UDP server fd faield: %d", errno);
+			exit(-1);
+		}
     }
 
     while(!loop->stop){
@@ -111,23 +117,28 @@ static void serve_forever(pIOLoop loop){
 }
 
 
-static void conn_modregister(pIOLoop loop, Conn* conn){
+static int conn_modregister(pIOLoop loop, Conn* conn){
     struct epoll_event ev;
 	ev.events = conn->events;
 	ev.data.ptr = (void*)conn;
 	if(epoll_ctl(loop->efd, EPOLL_CTL_MOD, conn->fd, &ev) < 0 ){
 		logwarn("fail to mod fd");
-		return;
+		return 0;
 	}
+	return 1;
 }
 
 static void conn_unregister(pIOLoop loop, Conn* conn){
     int fd = conn->fd;
-	epoll_ctl(loop->efd, EPOLL_CTL_DEL, fd, NULL);
-	loop->fd_count--;
+	if(epoll_ctl(loop->efd, EPOLL_CTL_DEL, fd, NULL) < 0){
+		logwarn("unregister fd %d error, errno: %d", fd, errno);
+	} else{
+		loop->fd_count--;
+	}
+	
 }
 
-static void conn_register(pIOLoop loop, Conn* conn){
+static int conn_register(pIOLoop loop, Conn* conn){
     struct epoll_event ev;
 	FD fd = conn->fd;
 
@@ -138,9 +149,10 @@ static void conn_register(pIOLoop loop, Conn* conn){
 		logwarn("fail to register FD %d with events %d to epoll", fd, conn->events);
 		close(conn->fd);
 		putback_tcpconn(conn);
-		return;
+		return 0;
 	}
 	loop->fd_count++;
+	return 1;
 }
 
 static void _heapify_timer(pIOLoop loop){

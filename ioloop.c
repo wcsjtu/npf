@@ -242,7 +242,6 @@ void dealloc_ioloop(IOLoop* loop){
     loop->initial = 0;
 }
 
-#define TEST_TIMER
 
 #ifdef TEST_TIMER
 
@@ -293,7 +292,7 @@ void on_close(Conn* conn){
 }
 
 
-#endif
+
 
 int main(){
 	TCPServer* tcpserver = new_tcpserver(on_read, on_write, on_close);
@@ -315,7 +314,7 @@ int main(){
 
     IOLoop* loop = ioloop_current();
 
-    #ifndef TEST_TIMER
+    #ifdef TEST_TIMER
 	long mask = (1 << 16) - 1;
 
 	for(int i = 0; i< 10; i ++){
@@ -330,3 +329,5 @@ int main(){
     loop->serve_forever(loop);
     dealloc_ioloop(loop);
 }
+
+#endif

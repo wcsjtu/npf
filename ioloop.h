@@ -70,4 +70,14 @@ void dealloc_ioloop(IOLoop* loop);
 
 */
 
+/*
+    服务退出时, 要做的事情:
+        1. 清理loop->timer, 类型是Heap类型
+        2. 清理loop->ready, 类型是Deque类型
+        3. 清理ConnCache
+        4. 主动关闭所有连接(TODO, 该怎么搞)
+        5. 清理loop->tcpserver, loop->udpserver
+        6. ...TODO
+*/
+
 #endif

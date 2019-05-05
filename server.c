@@ -34,12 +34,12 @@ int setnonblocking(FD fd )
 // Conn define
 
 // 写入缓存
-static void write_to_buf(Conn* conn, char* src, size_t len){
+static long write_to_buf(Conn* conn, char* src, size_t len){
 	RBSeg seg;
 	size_t wn = 0, n = 0;
 	pIOLoop loop = ioloop_current();
 	if(len <= 0)
-		return;
+		return 0;
 	if(!(conn->events & EPOLLOUT)){
 		conn->events |= EPOLLOUT;
 		loop->conn_modregister(loop, conn);
@@ -55,6 +55,7 @@ static void write_to_buf(Conn* conn, char* src, size_t len){
 			wn += n;
 		}
 	}
+    return wn;
 }
 
 static Conn* _new_conn(
@@ -96,8 +97,12 @@ static Conn* _new_conn(
 #define _NEW_TCP_CONN(fd, h) _new_conn(fd, h, MAX_BUF_SIZE, MAX_BUF_SIZE)
 #define _NEW_UDP_CONN(fd, h) _new_conn(fd, h, MAX_BUF_SIZE, 0)
 
-// 释放conn占用的内存
+// 释放conn占用的内存, 如果fd没关闭(fd > 0), 则会关闭这个fd
 static void _dealloc_conn(Conn* conn){
+    if(conn->fd > 0){
+        close(conn->fd);
+        conn->fd = -1;
+    }
 	if(conn->rbuf){
 		dealloc_ringbuf(conn->rbuf);
 	}
@@ -107,9 +112,10 @@ static void _dealloc_conn(Conn* conn){
 	free(conn);
 }
 
-// 清空conn中的数据, 但是保留buf
+// 清空conn中的数据, 但是保留buf和打开的fd(>0)
 static void _reset_conn(Conn* conn){
     pRingBuf rbuf=NULL, wbuf=NULL;
+    FD fd = conn->fd;
     if(conn->rbuf){
         rbuf = conn->rbuf;
         REST_RINGBUF(rbuf);
@@ -121,18 +127,21 @@ static void _reset_conn(Conn* conn){
     memset(conn, 0, sizeof(Conn));
     conn->wbuf = wbuf;
     conn->rbuf = rbuf;
+    if (fd > 0){
+        conn->fd = fd;
+    }
 }
 
-// 从cache中/或者new一个conn实例
-static Conn* _get_conn(struct ConnCache* cache, FD fd, events_handler handler){
+// 从cache中/或者new一个conn实例. 一个设定是, 如果它的fd > 0, 说明它是一个有效的fd, 否则, 就要重新打开一个新的fd
+static Conn* _get_conn(struct ConnCache* cache){
     Conn* res = NULL;
     if(cache->deq->count){
         res = (Conn*)(deque_pop(cache->deq)->val);
     } else{
         if (cache == &_tcp_conn_cache){
-            res = _NEW_TCP_CONN(fd, handler);
+            res = _NEW_TCP_CONN(0, NULL);
         } else if(cache == &_udp_conn_cache){
-            res = _NEW_UDP_CONN(fd, handler);
+            res = _NEW_UDP_CONN(0, NULL);
         } else{
             logwarn("bad call");
         }
@@ -140,17 +149,19 @@ static Conn* _get_conn(struct ConnCache* cache, FD fd, events_handler handler){
     
     if(res)
         cache->available--;
-    res->fd = fd;
-    res->handler = handler;
+    //res->fd = fd;
+    res->handler = NULL;
     return res;
 }
 
-Conn* get_tcpconn(FD fd, events_handler handler){
-    return _get_conn(&_tcp_conn_cache, fd, handler);
+// 空的conn, 里面只有rbuf 和wbuf, 请自行填充fd 与 handler
+Conn* get_tcpconn(){
+    return _get_conn(&_tcp_conn_cache);
 }
 
-Conn* get_udpconn(FD fd, events_handler handler){
-    return _get_conn(&_udp_conn_cache, fd, handler);
+// 空的conn, 里面只有rbuf和fd, 请自行填充handler
+Conn* get_udpconn(){
+    return _get_conn(&_udp_conn_cache);
 }
 
 // 将已经关闭的conn放回cache, 必须是已经关闭的
@@ -174,12 +185,13 @@ void putback_udpconn(Conn* conn){
     _putback_conn(&_udp_conn_cache, conn);
 }
 
-static void _close_tcpconn(void* _loop, Conn* conn){
-
+void close_tcpconn(void* _loop, Conn* conn){
     pIOLoop loop = (pIOLoop)_loop;
     loop->conn_unregister(loop, conn);
-	conn->on_close(conn);		//	执行回调
 	close(conn->fd);
+    conn->fd = -1;              // 将fd设置为无效。 可以对比下close_udpconn, 它不关闭fd
+    if(conn->on_close)
+        conn->on_close(conn);		//	执行回调
 }
 
 static size_t _read_tcpconn(pIOLoop loop, Conn* connection){
@@ -216,7 +228,7 @@ static size_t _write_tcpconn(pIOLoop loop, Conn* connection){
 			if(errno == EAGAIN){
 				break;
 			}
-			_close_tcpconn(loop, connection);
+			close_tcpconn(loop, connection);
             _putback_conn(&_tcp_conn_cache, connection);
 			return 0;
 		}
@@ -310,6 +322,24 @@ void dealloc_tcpserver(TCPServer* server){
 
 // UDPServer define
 
+// 打开一个新的UDP FD. 返回打开的FD, 失败则返回负数
+FD create_udp_fd(int family){
+    FD fd;
+    if(family == AF_INET6){
+        logwarn("IPv6 not supported now!");
+        return -1;
+    }
+    if( (fd = socket(family, SOCK_DGRAM, 0)) < 0 ){
+        logwarn("Fail to new UDP fd, errno: %d", errno);
+        return -1;
+    }
+    if(-1 == setnonblocking(fd)){
+        logwarn("set UDP fd to nonblocking error, errno: %d", errno);
+        return -1;
+    }
+    return fd;
+}
+
 static UDPServer* _udpserver_bind(UDPServer* server, in_addr_t addr, unsigned short port){
     server->addr = addr;
     server->port = port;
@@ -329,7 +359,9 @@ void listen_handler(void* _loop, Conn* sconn, int events, int signal){
     FD fd = sconn->fd;
     socklen_t	len = sizeof( struct sockaddr_in );
     if(events & EPOLLIN){
-        cconn = _get_conn(&_tcp_conn_cache, 0, conn_handler);
+        cconn = _get_conn(&_tcp_conn_cache);
+        cconn->fd = 0;
+        cconn->handler = conn_handler;
         if(cconn == NULL){
             logwarn("Out of memory when new Conn");
             return;
@@ -342,12 +374,15 @@ void listen_handler(void* _loop, Conn* sconn, int events, int signal){
 
         cconn->fd = conn_fd;
         cconn->events = EPOLLIN | EPOLLET | EPOLLERR;
-        loop->conn_register(loop, cconn);
+        
+        if(loop->conn_register(loop, cconn)){   // 如果注册成功了
+            cconn->on_read = loop->tcpserver->on_read;
+            cconn->on_write = loop->tcpserver->on_write;
+            cconn->on_close = loop->tcpserver->on_close;
+            cconn->write = write_to_buf;
+        }
 
-        cconn->on_read = loop->tcpserver->on_read;
-        cconn->on_write = loop->tcpserver->on_write;
-        cconn->on_close = loop->tcpserver->on_close;
-        cconn->write = write_to_buf;
+        
     }
     if(events & EPOLLERR){
         logerror("listen fd error: errno=%d", errno);
@@ -362,7 +397,7 @@ void conn_handler(void* _loop, Conn* conn, int events, int signal){
     // event handle
     if(events & EPOLLERR){
 		logerror("fd %d error: errno=%d", fd, errno);
-		_close_tcpconn(_loop, conn);
+		close_tcpconn(_loop, conn);
         _putback_conn(&_tcp_conn_cache, conn);
 		return;
 	}
@@ -372,14 +407,14 @@ void conn_handler(void* _loop, Conn* conn, int events, int signal){
 		if(rn > 0){
 			conn->on_read(conn);
 		}else{
-			_close_tcpconn(_loop, conn);
+			close_tcpconn(_loop, conn);
             _putback_conn(&_tcp_conn_cache, conn);
 			return;
 		}
 	}
 
     if(events & EPOLLOUT){
-		size_t nw = _write_tcpconn(loop, conn);
+		_write_tcpconn(loop, conn);
 	}
 
     // new event
@@ -396,10 +431,11 @@ void conn_handler(void* _loop, Conn* conn, int events, int signal){
 }
 
 void close_udpconn(void* _loop, Conn* conn){
-    //pIOLoop loop = (pIOLoop)_loop;
-    //loop->conn_unregister(loop, conn);    // 因为udpconn用的是listen socket的fd， 所以不能close
-    //close(conn->fd);
-	conn->on_close(conn);		//	执行回调
+    pIOLoop loop = (pIOLoop)_loop;
+    loop->conn_unregister(loop, conn);    // 不使用listen fd了
+    //close(conn->fd);                    // 为了复用fd, 这里不能关闭fd
+    if(conn->on_close)
+	    conn->on_close(conn);		//	执行回调
 	
 }
 
@@ -432,7 +468,7 @@ size_t read_udpconn(void* _loop, Conn* conn){
 }
 
 // 因为udp conn不提供write buffer, 所以调用这个函数, 会直接写socket
-void write_udpconn(Conn* conn, char* src, size_t len){
+long write_udpconn(Conn* conn, char* src, size_t len){
     // TODO 要不要判断len是否大于UDP包的最大长度
     if(len > MAX_UDP_PACKAGE_SIZE){
         logwarn("size of package which need be sent by udp exceeds MAX_UDP_PACKAGE_SIZE");
@@ -444,24 +480,38 @@ void write_udpconn(Conn* conn, char* src, size_t len){
     if(wn < 0){
         logwarn("UDP sendto error %d", errno);
     }
+    return wn;
 }
 
 void udp_listen_handler(void* _loop, Conn* sconn, int events, int signal){
     pIOLoop loop = (pIOLoop)_loop;
     Conn* cconn = NULL;
-    FD fd = sconn->fd;
+    FD cfd = -1;
     if(events & EPOLLIN){
-        cconn = _get_conn(&_udp_conn_cache, fd, NULL); //使用listen socket的fd
+        cconn = _get_conn(&_udp_conn_cache);
         if(cconn == NULL){
             logwarn("Out of memory when new Conn(UDP)");
             return;
         }
+
+        if(cconn->fd <= 0){     // fd已经被关闭了
+            cfd = create_udp_fd(sconn->addr.sin_family);
+            if(cfd <= 0){  // fd创建失败
+                putback_udpconn(cconn);
+                return;
+            }
+        }
+        
+        cfd = cconn->fd;            // 保存cfd, 后面要用
+        cconn->handler = NULL;
         cconn->on_read = loop->udpserver->on_read;
         cconn->on_write = loop->udpserver->on_write;
         cconn->on_close = loop->udpserver->on_close;
         cconn->write = write_udpconn;
+        cconn->fd = sconn->fd;      // 先将fd设置为listen fd, 不然读数据会出错
 
         long rn = read_udpconn(loop, cconn);
+        cconn->fd = cfd;            // 读完之后, 将fd设置为cfd
         if (rn > 0){
             cconn->on_read(cconn);
         }

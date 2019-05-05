@@ -17,7 +17,7 @@ typedef struct _conn{
     void(*on_read)(struct _conn* conn);
     void(*on_write)(struct _conn* conn);
     void(*on_close)(struct _conn* conn);
-    void(*write)(struct _conn* conn, char* src, size_t len);
+    long(*write)(struct _conn* conn, char* src, size_t len);
     void(*handler)(void* loop, struct _conn* conn, int events, int signal); // 使用void* 而不是IOLoop, 是为了防止循环include, 有没有好办法？
 
     struct sockaddr_in addr;
@@ -87,12 +87,21 @@ void putback_udpconn(Conn* conn);
 
 typedef void(*events_handler)(void* loop, Conn* conn, int events, int signal);
 
-Conn* get_tcpconn(FD fd, events_handler handler);
-Conn* get_udpconn(FD fd, events_handler handler);
+Conn* get_tcpconn();
+Conn* get_udpconn();
 
 void listen_handler(void* loop, Conn* conn, int events, int signal);
 void conn_handler(void* loop, Conn* conn, int events, int signal);
 
 size_t read_udpconn(void* loop, Conn* conn);
-void write_udpconn(Conn* conn, char* src, size_t len);
+long write_udpconn(Conn* conn, char* src, size_t len);
+
+// 关闭UDP conn, 但是不会关闭FD
+void close_udpconn(void* loop, Conn* conn);
+
+// 关闭TCP conn, 同时也会关闭FD
+void close_tcpconn(void* loop, Conn* conn);
+
+// 打开一个新的UDP FD. 返回打开的FD, 失败则返回负数
+FD create_udp_fd(int family);
 #endif

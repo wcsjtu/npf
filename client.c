@@ -4,13 +4,12 @@
 #include "client.h"
 #include "logger.h"
 
-static void _udp_events_handler(void* _loop, Conn* conn, int events, int signal){
+static void _udp_events_handler(void* _loop, UDPClient* cli, int events, int signal){
     pIOLoop loop = (pIOLoop)_loop;
-    FD fd = conn->fd;
     if(events & EPOLLIN){
-        long rn = read_udpconn(loop, conn);
+        long rn = read_udpconn(loop, cli);
         if(rn > 0){
-            conn->on_read(conn);
+            cli->on_read(cli);
         }
     }
     if(events & EPOLLERR){
@@ -18,43 +17,44 @@ static void _udp_events_handler(void* _loop, Conn* conn, int events, int signal)
     }
 }
 
-Conn* new_udp_client(const char* addr, unsigned short port, int family){
+UDPClient* new_udp_client(const char* addr, unsigned short port, int family){
     FD fd;
     if(family == AF_INET6){
         logwarn("IPv6 not supported now!");
         return NULL;
     }
-    Conn* conn = get_udpconn(0, _udp_events_handler);
-    if(!conn){
-        logwarn("failed to new UDP client");
+    UDPClient* cli = get_udpconn();
+    if(cli->fd <= 0){
+        fd = create_udp_fd(family);
+        if(fd <= 0){
+            putback_udpconn(cli);
+            return NULL;
+        }
+    }
+    cli->handler = _udp_events_handler;
+    cli->fd = fd;
+    cli->addr.sin_family = family;
+    cli->addr.sin_port = htons(port);
+    cli->events = EPOLLIN | EPOLLERR | EPOLLET;
+    if(inet_pton(family, addr, &cli->addr.sin_addr) != 1){
+        logwarn("invalid ipaddr, errno: %d", errno);
+        putback_udpconn(cli);
         return NULL;
     }
-
-    if( (fd = socket(family, SOCK_DGRAM, 0)) < 0 ){
-        logwarn("Fail to new UDP client, socket created error: %d", errno);
-        return NULL;
-    }
-    if(-1 == setnonblocking(fd)){
-        logwarn("Fail to new UDP client, set socket to nonblocking error: %d", errno);
-        return NULL;
-    }
-    conn->fd = fd;
-    conn->addr.sin_family = family;
-    conn->addr.sin_port = htons(port);
-    conn->events = EPOLLIN | EPOLLERR | EPOLLET;
-    inet_pton(family, addr, &conn->addr.sin_addr);
-    return conn;
+    return cli;
 }
 
-void send_udp(Conn* conn, char* buf, size_t len, onfunc on_read){
+// UDP客户端发送数据, 如果成功, 则返回发送的字节数, 如果失败, 则返回负数
+long udpclient_send(UDPClient* cli, char* buf, size_t len, onfunc on_read){
     pIOLoop loop = ioloop_current();
-    conn->on_read = on_read;
-    loop->conn_register(loop, conn);
-    write_udpconn(conn, buf, len);
+    cli->on_read = on_read;
+    if(!loop->conn_register(loop, cli)){
+        return -1;
+    }
+    return write_udpconn(cli, buf, len);
 }
 
-void close_udp_client(pIOLoop loop, Conn* conn){
-    loop->conn_unregister(loop, conn);
-    close(conn->fd);
-    putback_udpconn(conn);
+void udpclient_close(pIOLoop loop, UDPClient* cli){
+    close_udpconn(loop, cli);
+    putback_udpconn(cli);
 }

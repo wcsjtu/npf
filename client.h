@@ -4,11 +4,13 @@
 #include "server.h"
 #include "ioloop.h"
 
+typedef Conn UDPClient;
+typedef Conn TCPClient;
 
-void send_udp(Conn* conn, char* buf, size_t len, onfunc on_read);
-Conn* new_udp_client(const char* addr, unsigned short port, int family);
-void send_udp(Conn* conn, char* buf, size_t len, onfunc on_read);
-void close_udp_client(pIOLoop loop, Conn* conn);
+
+UDPClient* new_udp_client(const char* addr, unsigned short port, int family);
+long udpclient_send(UDPClient* cli, char* buf, size_t len, onfunc on_read);
+void udpclient_close(pIOLoop loop, UDPClient* cli);
 
 
 #endif

@@ -108,7 +108,7 @@ typedef struct _dnsheader{
     unsigned char tc          : 1;
     unsigned char aa          : 1;
     unsigned char opcode      : 4;
-    unsigned char qr          : 1;
+    unsigned char qr          : 1;      // qr在协议里是高位, 所以必须定义在下面
     
     unsigned char rcode       : 4;
     unsigned char reserved    : 3;

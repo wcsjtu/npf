@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include "dict.h"
 
 typedef struct _sds{
     size_t sz;
@@ -18,7 +19,7 @@ typedef char* sds;
 sds new_sds(size_t sz);
 void dealloc_sds(sds s);
 
-#define SDS_LEN(s) ( ((SDS*)((char*)s - sizeof(SDS)))->sz )
+#define SDS_LEN(s) ( ((SDS*)((char*)(s) - sizeof(SDS)))->sz )
 
 /*
 
@@ -133,22 +134,6 @@ typedef struct _dnsheader{
     tmp = htons((phdr)->addrr_count);  memcpy(buf, &tmp, 2); buf+=2;\
     } while(0)
 
-typedef struct _ipaddr{
-    unsigned short qtype;    // 最大28, AAAA
-    unsigned short sz;       // 最大 46 + 1
-    unsigned int ttl;
-    sds domain;
-    char addr[];
-}RR, *pRR;
-
-typedef char* ipaddr;
-
-#define IPADDR_TO_RR(addr) ((pRR)((char*)addr - sizeof(RR)))
-
-#define IPADDR_QTYPE(addr) ( IPADDR_TO_RR(addr)->qtype )
-
-ipaddr new_ipaddr(sds domain, unsigned char qt, unsigned char sz);
-void dealloc_ipaddr(ipaddr);
 
 typedef struct  _parser{
     size_t length;
@@ -156,17 +141,6 @@ typedef struct  _parser{
     DNSheader header;
     char* raw;
 } Parser, *pParser;
-
-struct _iplist{
-    size_t sz;
-    ipaddr list[];
-} ;
-
-typedef ipaddr* IPlist;
-
-void dealloc_iplist(IPlist list);
-
-#define IPLIST_SIZE(list) ( ((struct _iplist* )((char*)list - sizeof(struct _iplist)))->sz )
 
 #define DNS_REQ_REQUIRED_RECUSION 1
 #define DNS_STANDARD_REQ 0
@@ -194,5 +168,28 @@ sds build_dns_request(const char* hostname, size_t length, unsigned short qtype,
 pParser new_dns_parser(char* raw, size_t length);
 void dealloc_dnsparser(pParser parser);
 
-IPlist dns_parse_response(Parser* parser);
+
+
+int init_dns_cache(size_t size);
+void dealloc_dns_cache();
+
+typedef char* ipstr;
+
+typedef struct _ipstr{
+    ipstr next;
+    size_t size;
+    char val[];
+} IPStr;
+
+// 将字符串形式的ipstr, 转为IPStr实例
+#define _ipstr_TO_IPSTR(ip)  ( (IPStr*)( (char*)(ip) - sizeof(IPStr)) )
+
+// 获取ipstr的长度
+#define IPSTR_LEN(ip) ( _ipstr_TO_IPSTR(ip)->size )
+
+// 获取下一个IP
+#define IPSTR_NEXT(ip)  ( _ipstr_TO_IPSTR(ip)->next)
+
+ipstr dns_parse_response(Parser* parser);
+
 #endif

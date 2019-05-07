@@ -12,22 +12,19 @@
 
 void on_dns_response(UDPClient* cli){
     RBSeg seg;
-    ipaddr ip;
+    ipstr ip;
     if(!rb_readable(cli->rbuf, &seg)){
         return;
     }
     pParser parser =  new_dns_parser(seg.buf, seg.len);
-    IPlist res = dns_parse_response(parser);
+    ip = dns_parse_response(parser);
 
-    size_t sz = IPLIST_SIZE(res);
-    for(size_t i = 0; i< IPLIST_SIZE(res); i ++){
-        ip = res[i];
-        unsigned short qtype = IPADDR_QTYPE(ip);
-        logdebug("%s", ip);
+    while(ip){
+        loginfo("%s", ip);
+        ip = IPSTR_NEXT(ip);
     }
-    dealloc_iplist(res);
-    dealloc_dnsparser(parser);
 
+    dealloc_dnsparser(parser);
     udpclient_close(ioloop_current(), cli);
 }
 
@@ -48,7 +45,7 @@ void test_dns(void* sdshost, int signal){
 
 void dns_timer(pIOLoop loop, long delay){
     pTimer timer = (pTimer)malloc(sizeof(Timer));
-    const char host[] = "www.jd.com"; 
+    const char host[] = "www.163.com"; 
     sds sdshost = new_sds(sizeof(host) - 1);
     memcpy(sdshost, (char*)host, sizeof(host) - 1);
 
@@ -88,7 +85,14 @@ void on_write(Conn* conn){
 }
 
 void on_close(Conn* conn){
-	logdebug("conn closed!");
+    char ip[INET6_ADDRSTRLEN] = {0};
+    struct sockaddr_in addr = conn->addr;
+    if(inet_ntop(addr.sin_family, &(addr.sin_addr), ip, INET6_ADDRSTRLEN) == NULL){
+        logwarn("ntop error: %d", errno);
+        return;
+    }
+    
+	loginfo("Bye %s:%d", ip, addr.sin_port);
 }
 
 
@@ -115,8 +119,9 @@ int main(){
 	}
 
 
-    set_loglevel(LOGLV_DEBUG);
+    set_loglevel(LOGLV_INFO);
 	init_conn_cache(100);
+    init_dns_cache(1 << 6);
 
     dns_timer(loop, 5);
 

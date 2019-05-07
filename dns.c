@@ -3,25 +3,12 @@
 #include "dns.h"
 #include "util.h"
 
-IPlist new_iplist(size_t sz){
-    struct _iplist* list = (struct _iplist*)malloc(sizeof(struct _iplist) + sz* sizeof(ipaddr));
-    if (list == NULL){
-        logwarn("Out of memory when create IPlist with size %lu", sz);
-        return NULL;
-    }
-    list->sz = sz;
-    return list->list;
-}
 
-// 释放容器, 但是不会释放容器内的元素
-void dealloc_iplist(IPlist list){
-    struct _iplist* iplist = (struct _iplist* )((char*)list - sizeof(struct _iplist));
-    free(iplist);
-}
-
+pDict dns_cache = NULL;
+pDict dns_cache_v6 = NULL;
 
 sds new_sds(size_t sz){
-    size_t buflen = sizeof(SDS) + sz;
+    size_t buflen = sizeof(SDS) + sz + 1;   // 1表示末尾的\0
     SDS* s = (SDS*)malloc(buflen);
     if (s == NULL){
         logwarn("Out of memory when create SDS with size %lu", sz);
@@ -39,23 +26,105 @@ void dealloc_sds(sds s){
     free(ptr);
 }
 
-ipaddr new_ipaddr(sds domain, unsigned char qt, unsigned char sz){
-    pRR rr = (pRR)malloc(sizeof(RR) + sz);
-    if (rr == NULL){
-        logwarn("Out of memory when create new IPADDR");
+// 新建一个ipstr
+ipstr new_ipstr(size_t size){
+    IPStr* ip = calloc(sizeof(char), sizeof(IPStr) + sizeof(char) * size);
+    if(ip == NULL){
+        logwarn("Out of memory when new IPStr with size %lu", size);
         return NULL;
     }
-    rr->qtype = qt;
-    rr->sz = sz;
-    rr->domain = domain;
-    memset(rr->addr, 0, sz);
-    return rr->addr;
+    return ip->val;
 }
 
-void dealloc_ipaddr(ipaddr addr){
-    pRR rr = (pRR)(addr - sizeof(RR));
-    dealloc_sds( rr->domain );
-    free(rr);
+// 释放ipstr
+void dealloc_ipstr(ipstr ip){
+    if(ip == NULL)
+        return;
+    IPStr* obj = _ipstr_TO_IPSTR(ip);
+    free(obj);
+}
+
+
+// ===================================================
+// dict 类型定义
+
+// {sds: sds}
+static void* _dns_kv_dup(void* key){
+    size_t sz = SDS_LEN((sds)key);
+    sds dup = new_sds(sz);
+    if(dup)
+        memcpy(dup, key, sz);
+    return (void*)dup;
+};
+
+static int _dns_key_eq(void* key1, void* key2){
+    return strcmp((char*)key1, (char*)key2) == 0 ? 1: 0;
+}
+
+static void _dns_key_free(pDictEntry entry, void* key){
+    if(key)
+        dealloc_sds((sds)key);
+}
+
+// val 是个链表类型
+static void _dns_val_free(void* val){
+
+    if(val == NULL)
+        return;
+    IPStr* obj = _ipstr_TO_IPSTR(val);
+    IPStr* next = NULL;
+    while(obj){
+        next = _ipstr_TO_IPSTR(obj->next);
+        free(obj);
+        obj = next;
+    }
+}
+
+static DictType dnsDictType = {
+    hash,
+    _dns_kv_dup,    
+    _dns_kv_dup,
+    _dns_key_eq,
+    _dns_key_free,
+    _dns_val_free
+};
+
+// 初始化dns 缓存容器, 返回1成功, 0失败
+int init_dns_cache(size_t size){
+    dns_cache = new_dict(size, &dnsDictType);
+    if(dns_cache){
+        dns_cache_v6 = new_dict(size, &dnsDictType);
+        if(dns_cache_v6 == NULL)
+            dealloc_dict(dns_cache);
+    }
+    return dns_cache && dns_cache_v6? 1 : 0;
+}
+
+void dealloc_dns_cache(){
+    if(dns_cache)
+        dealloc_dict(dns_cache);
+    if(dns_cache_v6)
+        dealloc_dict(dns_cache_v6);
+
+}
+
+static ipstr _link_two(ipstr left, ipstr right){
+    if(!right)
+        return left;
+    _ipstr_TO_IPSTR(right)->next = left;
+    return right;
+}
+
+static void _add_to_cache(pDict cache, sds host, ipstr ip){
+    pDictEntry entry = get_item(cache, host);
+    entry->val = _link_two((ipstr)(entry->val), ip);
+    // if(entry->val){
+    //     IPStr* obj = _ipstr_TO_IPSTR(ip);
+    //     obj->next = entry->val;
+    //     entry->val = ip;
+    // } else{
+    //     entry->val = ip;
+    // }
 }
 
 
@@ -144,7 +213,8 @@ static int dns_parse_header(Parser* parser){
     return 1;
 }
 
-static sds dns_parse_query(Parser* parser){
+// 解析query name, 如果allocmem == 0, 或者失败, 则返回NULL; 否则返回sds表示的name
+static sds dns_parse_query(Parser* parser, int allocmem){
     char* buf = parser->raw ;
     unsigned char up = 0, i = parser->offset, offset = parser->offset, part_index = 0;
     unsigned int j = 0, copied = 0, domain_length =0; 
@@ -180,21 +250,23 @@ static sds dns_parse_query(Parser* parser){
     // copy query name to buffer
     if(domain_length <= 1){
         logwarn("bad hostname whose length <= 1");
-        return 0;
+        return NULL;
     }
     domain_length -- ;                  // 上面多加了一个.
 
-    if((query=new_sds(domain_length)) == NULL){
-        logwarn("Out of memory when parse dns query name");
-        return NULL;
-    }
-    for(; j < part_index; j++){
-        part = parts[j];
-        memcpy(query + copied, buf + part.start, part.length);
-        copied += part.length;
-        if (j != part_index - 1){
-            *(query + copied) = '.';
-            copied ++;
+    if(allocmem){   // 需要分配内存的话
+        if((query=new_sds(domain_length)) == NULL){
+            logwarn("Out of memory when parse dns query name");
+            return NULL;
+        }
+        for(; j < part_index; j++){
+            part = parts[j];
+            memcpy(query + copied, buf + part.start, part.length);
+            copied += part.length;
+            if (j != part_index - 1){
+                *(query + copied) = '.';
+                copied ++;
+            }
         }
     }
     parser->offset = offset;    // 解析成功后, 才更新offset
@@ -207,20 +279,18 @@ static sds dns_parse_query(Parser* parser){
 #define _INT_FROM_PARSER(parser, v) v = ntohl(*((unsigned int*)(parser->raw + parser->offset)));\
     parser->offset += 4
 
-static void __dns_parse_rrs(Parser* parser, ipaddr* list, size_t n){
+static ipstr __dns_parse_rrs(Parser* parser, int eqt, size_t n){
     if(n == 0)
-        return ;
+        return NULL;
     char* buf = parser->raw;
-    sds query = NULL, cname = NULL;
     unsigned short qtype = 0, qcls = 0, data_length = 0;
     unsigned int ttl = 0;
     size_t tmp = 0;
-    ipaddr addr = NULL;
+    ipstr ip = NULL, next = NULL;
 
     for(size_t i = 0; i< n; i++){
-        query = dns_parse_query(parser);
-        if(query == NULL)
-            return;
+        dns_parse_query(parser, 0);
+        
         _SHORT_FROM_PARSER(parser, qtype);
         _SHORT_FROM_PARSER(parser, qcls);
         _INT_FROM_PARSER(parser, ttl);
@@ -229,40 +299,42 @@ static void __dns_parse_rrs(Parser* parser, ipaddr* list, size_t n){
         switch (qtype) 
         {
         case QTYPE_A:
-            addr = new_ipaddr(query, QTYPE_A, INET_ADDRSTRLEN + 1);     // TODO 没有做OOM校验
-            inet_ntop(AF_INET, buf + parser->offset, addr, INET_ADDRSTRLEN);
+            if(qtype != eqt){
+                logwarn("DNS response with error qtye");
+                parser->offset += data_length;
+            } else{
+                next = new_ipstr(INET_ADDRSTRLEN + 1);    // TODO 没有做OOM校验
+                inet_ntop(AF_INET, buf + parser->offset, next, INET_ADDRSTRLEN);  // TODO 没做合法性校验
+                // 组合链表
+                ip = _link_two(ip, next);
+            }
             parser->offset += data_length;
             break;
         case QTYPE_AAAA:
-            addr = new_ipaddr(query, QTYPE_A, INET6_ADDRSTRLEN + 1);
-            inet_ntop(AF_INET6, buf + parser->offset, addr, INET6_ADDRSTRLEN);
+            if(qtype != eqt){
+                logwarn("DNS response with error qtye");
+                parser->offset += data_length;
+            } else{
+                next = new_ipstr(INET6_ADDRSTRLEN + 1);    // TODO 没有做OOM校验
+                inet_ntop(AF_INET6, buf + parser->offset, next, INET6_ADDRSTRLEN); // TODO 没做合法性校验
+                // 组合链表
+                ip = _link_two(ip, next);
+            }
             parser->offset += data_length;
             break;
-        default:
-            logdebug("qtype == %d", qtype);
-            cname = dns_parse_query(parser);
-            if(!cname){
-                // TODO
-            }
-            addr = new_ipaddr(query, qtype, SDS_LEN(cname));
-            if (cname){
-                tmp = SDS_LEN(cname);
-                memcpy(addr, cname, tmp);
-                dealloc_sds(cname);
-            }
+        default:    // cname的情况
+            dns_parse_query(parser, 0);
             break;
         }
-        
-        *list = addr;
-        list++;
     }
-    return;
+    return ip;
 }
 
 // 容器是malloc出来的, 用完记得用dealloc_iplist来释放内存
-ipaddr* dns_parse_response(pParser parser){
+ipstr dns_parse_response(pParser parser){
     sds query = NULL;
     size_t rrs = 0;
+    ipstr res = NULL;
     unsigned short qtype, qcls;
     if(!parser || parser->offset != 0){
         logwarn("invalid parser, NULL or parsed");
@@ -274,28 +346,25 @@ ipaddr* dns_parse_response(pParser parser){
         return NULL;
     }
     rrs = parser->header.addrr_count + parser->header.authrr_count + parser->header.rr_count;
-    query = dns_parse_query(parser);
+    query = dns_parse_query(parser, 1);
     if(!query){
         logwarn("dns query name parse failed");
         return NULL;
     }
-    IPlist list = new_iplist(rrs);
-    if(!list){
-        logwarn("create new ipaddr list with size %lu failed", rrs);
-        dealloc_sds(query);
-        return NULL;
-    }
+
     _SHORT_FROM_PARSER(parser, qtype);
     _SHORT_FROM_PARSER(parser, qcls);
 
     if(parser->header.rr_count)
-        __dns_parse_rrs(parser, list, parser->header.rr_count);
+        res = __dns_parse_rrs(parser, qtype, parser->header.rr_count);
     if(parser->header.authrr_count)
-        __dns_parse_rrs(parser, list, parser->header.authrr_count);
+        res = _link_two(res, __dns_parse_rrs(parser, qtype, parser->header.authrr_count)) ;
     if(parser->header.addrr_count)
-        __dns_parse_rrs(parser, list, parser->header.addrr_count);
-    dealloc_sds(query);     // TODO 直接把域名释放了, 是不是不太好
-    return list;
+        res = _link_two(res, __dns_parse_rrs(parser, qtype, parser->header.addrr_count)) ;
+
+    pDict cache = qtype == QTYPE_A ? dns_cache : dns_cache_v6;
+    set_item(cache, query, res);
+    return res;
 }
 
 // parser是malloc出来的, 用完记得用dealloc_dnsparser释放

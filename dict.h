@@ -19,7 +19,7 @@ typedef struct _DictType{
 	void* (*valDup)(void* val);
 	int(*keyEq)(void *key1, void *key2);
 	void(*keyFree)(pDictEntry entry, void* key);
-	void(*valFree)(pDictEntry entry);
+	void(*valFree)(void* val);
 }DictType, *pDictType;
 
 
@@ -85,6 +85,8 @@ void* dealloc_dict(pDict dict);
 pDictEntry get_item(pDict dict, pKey key);
 int set_item(pDict dict, pKey key, pValue val);
 int del_item(pDict dict, pKey key);
+
+long hash(pKey key);
 
 #endif // !_HASH_TABLE_H
 

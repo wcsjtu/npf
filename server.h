@@ -20,7 +20,7 @@ typedef struct _conn{
     void(*on_close)(struct _conn* conn);
     long(*write)(struct _conn* conn, char* src, size_t len);
     void(*handler)(void* loop, struct _conn* conn, int events, int signal); // 使用void* 而不是IOLoop, 是为了防止循环include, 有没有好办法？
-
+    void* extra;        // 可以是任何东西
     struct sockaddr_in addr;
 
 } Conn;

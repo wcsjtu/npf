@@ -3,7 +3,7 @@
 #include "dns.h"
 #include "util.h"
 
-
+#define MAX_SDS_LENGTH (1 << 20)
 
 pDict dns_cache = NULL;
 pDict dns_cache_v6 = NULL;
@@ -13,8 +13,8 @@ static const unsigned short DNS_PORT = 53;
 
 sds new_sds(size_t sz){
     size_t buflen = sizeof(SDS) + sz + 1;   // 1表示末尾的\0
-    SDS* s = (SDS*)malloc(buflen);
-    if (s == NULL){
+    SDS* s = NULL;
+    if (buflen >= MAX_SDS_LENGTH || (s = (SDS*)malloc(buflen)) == NULL){
         logwarn("Out of memory when create SDS with size %lu", sz);
         return NULL;
     }
@@ -53,13 +53,6 @@ void dealloc_ipstr(ipstr ip){
 // dict 类型定义
 
 // {sds: sds}
-static void* _dns_kv_dup(void* key){
-    size_t sz = SDS_LEN((sds)key);
-    sds dup = new_sds(sz);
-    if(dup)
-        memcpy(dup, key, sz);
-    return (void*)dup;
-};
 
 static int _dns_key_eq(void* key1, void* key2){
     return strcmp((char*)key1, (char*)key2) == 0 ? 1: 0;
@@ -86,8 +79,8 @@ static void _dns_val_free(void* val){
 
 static DictType dnsDictType = {
     hash,
-    _dns_kv_dup,    
-    _dns_kv_dup,
+    NULL,    
+    NULL,
     _dns_key_eq,
     _dns_key_free,
     _dns_val_free

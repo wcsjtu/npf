@@ -122,7 +122,7 @@ static int conn_modregister(pIOLoop loop, Conn* conn){
 	ev.events = conn->events;
 	ev.data.ptr = (void*)conn;
 	if(epoll_ctl(loop->efd, EPOLL_CTL_MOD, conn->fd, &ev) < 0 ){
-		logwarn("fail to mod fd");
+		logwarn("fail to mod fd %d", conn->fd);
 		return 0;
 	}
 	return 1;

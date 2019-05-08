@@ -2,10 +2,14 @@
 #include "logger.h"
 #include "dns.h"
 #include "util.h"
+#include "sgdefs.h"
 
 
 pDict dns_cache = NULL;
 pDict dns_cache_v6 = NULL;
+
+static const char* DNS_SERVER = "10.246.3.33";
+static const unsigned short DNS_PORT = 53;
 
 sds new_sds(size_t sz){
     size_t buflen = sizeof(SDS) + sz + 1;   // 1表示末尾的\0
@@ -384,6 +388,40 @@ void dealloc_dnsparser(pParser parser){
     if(parser)
         free(parser);
 }
+
+static void _on_dns_response(UDPClient* cli){
+    RBSeg seg;
+    ipstr ip;
+    handler cb =  (handler)cli->events;
+    if(!rb_readable(cli->rbuf, &seg)){
+        cb(NULL, SG_INTERN_ERR);
+        return;
+    }
+    pParser parser =  new_dns_parser(seg.buf, seg.len);
+    ip = dns_parse_response(parser);
+    dealloc_dnsparser(parser);
+    udpclient_close(ioloop_current(), cli);
+    cb(ip,  ip ? SG_OK : SG_INTERN_ERR);
+}
+
+void resolve(const char* hostname, int family, handler callback){
+    int qtype = family == AF_INET ? QTYPE_A : QTYPE_AAAA;
+    sds req = build_dns_request(hostname, strlen(hostname), qtype, (short)rand());
+    if(!req){
+        callback(NULL, SG_OUTOFMEM);
+        return NULL;
+    }
+    UDPClient* cli = new_udp_client(DNS_SERVER, DNS_PORT, family);
+    if(!cli){
+        callback(NULL, SG_OUTOFMEM);
+        return NULL;
+    }
+    cli->extra = (void*)callback;
+    udpclient_send(cli, req, SDS_LEN(req), _on_dns_response);
+    dealloc_sds(req);
+}
+
+
 
 //#define TEST_DNS
 

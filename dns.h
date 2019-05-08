@@ -8,6 +8,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include "dict.h"
+#include "client.h"
+
 
 typedef struct _sds{
     size_t sz;
@@ -25,7 +27,7 @@ void dealloc_sds(sds s);
 
 DNS header structure
 
-0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
+7    6    5    4    3    2    1    0    8    7    6    5    4    3    2    1    0
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
 |                             request id                                        |
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
@@ -191,5 +193,8 @@ typedef struct _ipstr{
 #define IPSTR_NEXT(ip)  ( _ipstr_TO_IPSTR(ip)->next)
 
 ipstr dns_parse_response(Parser* parser);
+
+// 根据hostname, 在缓存中查询IP, 如果没查到, 则返回NULL
+void resolve(const char* hostname, int family, handler callback);
 
 #endif

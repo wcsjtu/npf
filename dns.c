@@ -2,7 +2,7 @@
 #include "logger.h"
 #include "dns.h"
 #include "util.h"
-#include "sgdefs.h"
+
 
 
 pDict dns_cache = NULL;
@@ -118,19 +118,6 @@ static ipstr _link_two(ipstr left, ipstr right){
     _ipstr_TO_IPSTR(right)->next = left;
     return right;
 }
-
-static void _add_to_cache(pDict cache, sds host, ipstr ip){
-    pDictEntry entry = get_item(cache, host);
-    entry->val = _link_two((ipstr)(entry->val), ip);
-    // if(entry->val){
-    //     IPStr* obj = _ipstr_TO_IPSTR(ip);
-    //     obj->next = entry->val;
-    //     entry->val = ip;
-    // } else{
-    //     entry->val = ip;
-    // }
-}
-
 
 
 // 构造dns请求包
@@ -289,7 +276,6 @@ static ipstr __dns_parse_rrs(Parser* parser, int eqt, size_t n){
     char* buf = parser->raw;
     unsigned short qtype = 0, qcls = 0, data_length = 0;
     unsigned int ttl = 0;
-    size_t tmp = 0;
     ipstr ip = NULL, next = NULL;
 
     for(size_t i = 0; i< n; i++){
@@ -337,7 +323,6 @@ static ipstr __dns_parse_rrs(Parser* parser, int eqt, size_t n){
 // 容器是malloc出来的, 用完记得用dealloc_iplist来释放内存
 ipstr dns_parse_response(pParser parser){
     sds query = NULL;
-    size_t rrs = 0;
     ipstr res = NULL;
     unsigned short qtype, qcls;
     if(!parser || parser->offset != 0){
@@ -349,7 +334,6 @@ ipstr dns_parse_response(pParser parser){
         logwarn("dns header parse failed");
         return NULL;
     }
-    rrs = parser->header.addrr_count + parser->header.authrr_count + parser->header.rr_count;
     query = _dns_parse_query(parser, 1);
     if(!query){
         logwarn("dns query name parse failed");
@@ -392,7 +376,7 @@ void dealloc_dnsparser(pParser parser){
 static void _on_dns_response(UDPClient* cli){
     RBSeg seg;
     ipstr ip;
-    handler cb =  (handler)cli->events;
+    handler cb =  (handler)(cli->extra);
     if(!rb_readable(cli->rbuf, &seg)){
         cb(NULL, SG_INTERN_ERR);
         return;
@@ -402,6 +386,7 @@ static void _on_dns_response(UDPClient* cli){
     dealloc_dnsparser(parser);
     udpclient_close(ioloop_current(), cli);
     cb(ip,  ip ? SG_OK : SG_INTERN_ERR);
+    cli->extra = NULL;      // 清空
 }
 
 void resolve(const char* hostname, int family, handler callback){
@@ -409,12 +394,12 @@ void resolve(const char* hostname, int family, handler callback){
     sds req = build_dns_request(hostname, strlen(hostname), qtype, (short)rand());
     if(!req){
         callback(NULL, SG_OUTOFMEM);
-        return NULL;
+        return ;
     }
     UDPClient* cli = new_udp_client(DNS_SERVER, DNS_PORT, family);
     if(!cli){
         callback(NULL, SG_OUTOFMEM);
-        return NULL;
+        return ;
     }
     cli->extra = (void*)callback;
     udpclient_send(cli, req, SDS_LEN(req), _on_dns_response);

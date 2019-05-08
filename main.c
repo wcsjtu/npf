@@ -8,50 +8,30 @@
 #include "client.h"
 #include "util.h"
 #include "dns.h"
+#include "sgdefs.h"
 
 
-void on_dns_response(UDPClient* cli){
-    RBSeg seg;
-    ipstr ip;
-    if(!rb_readable(cli->rbuf, &seg)){
+
+void on_resolved(void* res, Signal sg){
+    ipstr ip = (ipstr)res;
+    if(sg != SG_OK)
         return;
-    }
-    pParser parser =  new_dns_parser(seg.buf, seg.len);
-    ip = dns_parse_response(parser);
-
-    while(ip){
+    while (ip){
         loginfo("%s", ip);
         ip = IPSTR_NEXT(ip);
     }
-
-    dealloc_dnsparser(parser);
-    udpclient_close(ioloop_current(), cli);
 }
 
 
-void test_dns(void* sdshost, int signal){
-
-    char* req = build_dns_request( (char*)sdshost, SDS_LEN(sdshost), QTYPE_A, 12 );
-    if(!req){
-        logwarn("ERROR!");
-        return;
-    }
-    UDPClient* cli = new_udp_client("10.246.3.33", 53, AF_INET);
-    udpclient_send(cli, req, SDS_LEN(req), on_dns_response);
-
-    dealloc_sds(sdshost);
-    dealloc_sds(req);
+void test_dns(void* sdshost, Signal signal){
+    resolve("www.163.com", AF_INET, on_resolved);
 }
 
 void dns_timer(pIOLoop loop, long delay){
     pTimer timer = (pTimer)malloc(sizeof(Timer));
-    const char host[] = "www.163.com"; 
-    sds sdshost = new_sds(sizeof(host) - 1);
-    memcpy(sdshost, (char*)host, sizeof(host) - 1);
-
     timer->callback = test_dns;
     timer->due = tsnow() + delay;
-    timer->vars = (void*)sdshost;
+    timer->vars = NULL;
     loop->add_timer(loop, timer);
 }
 

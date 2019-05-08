@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include "dict.h"
 #include "client.h"
-
+#include "sgdefs.h"
 
 typedef struct _sds{
     size_t sz;

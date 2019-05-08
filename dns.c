@@ -214,7 +214,7 @@ static int dns_parse_header(Parser* parser){
 }
 
 // 解析query name, 如果allocmem == 0, 或者失败, 则返回NULL; 否则返回sds表示的name
-static sds dns_parse_query(Parser* parser, int allocmem){
+static sds _dns_parse_query(Parser* parser, int allocmem){
     char* buf = parser->raw ;
     unsigned char up = 0, i = parser->offset, offset = parser->offset, part_index = 0;
     unsigned int j = 0, copied = 0, domain_length =0; 
@@ -289,7 +289,7 @@ static ipstr __dns_parse_rrs(Parser* parser, int eqt, size_t n){
     ipstr ip = NULL, next = NULL;
 
     for(size_t i = 0; i< n; i++){
-        dns_parse_query(parser, 0);
+        _dns_parse_query(parser, 0);
         
         _SHORT_FROM_PARSER(parser, qtype);
         _SHORT_FROM_PARSER(parser, qcls);
@@ -323,7 +323,7 @@ static ipstr __dns_parse_rrs(Parser* parser, int eqt, size_t n){
             parser->offset += data_length;
             break;
         default:    // cname的情况
-            dns_parse_query(parser, 0);
+            _dns_parse_query(parser, 0);
             break;
         }
     }
@@ -346,7 +346,7 @@ ipstr dns_parse_response(pParser parser){
         return NULL;
     }
     rrs = parser->header.addrr_count + parser->header.authrr_count + parser->header.rr_count;
-    query = dns_parse_query(parser, 1);
+    query = _dns_parse_query(parser, 1);
     if(!query){
         logwarn("dns query name parse failed");
         return NULL;

@@ -353,7 +353,7 @@ void dealloc_udpserver(UDPServer* server){
     free(server);
 }
 
-void listen_handler(void* _loop, Conn* sconn, int events, int signal){
+void listen_handler(void* _loop, Conn* sconn, int events, Signal signal){
     pIOLoop loop = (pIOLoop)_loop;
     Conn* cconn = NULL;
     FD fd = sconn->fd;
@@ -390,7 +390,7 @@ void listen_handler(void* _loop, Conn* sconn, int events, int signal){
     }
 }
 
-void conn_handler(void* _loop, Conn* conn, int events, int signal){
+void conn_handler(void* _loop, Conn* conn, int events, Signal signal){
     pIOLoop loop = (pIOLoop)_loop;
     long rn = 0;
     int new_events = EPOLLERR | EPOLLET, fd = conn->fd;
@@ -441,7 +441,6 @@ void close_udpconn(void* _loop, Conn* conn){
 
 // 将数据从socket读到read buffer中
 size_t read_udpconn(void* _loop, Conn* conn){
-    pIOLoop loop = (pIOLoop)_loop;
     RBSeg seg;
 	long rn = 0, total = 0;
 	int fd = conn->fd;
@@ -483,7 +482,7 @@ long write_udpconn(Conn* conn, char* src, size_t len){
     return wn;
 }
 
-void udp_listen_handler(void* _loop, Conn* sconn, int events, int signal){
+void udp_listen_handler(void* _loop, Conn* sconn, int events, Signal signal){
     pIOLoop loop = (pIOLoop)_loop;
     Conn* cconn = NULL;
     FD cfd = -1;

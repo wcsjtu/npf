@@ -8,8 +8,9 @@
 #include "ringbuf.h"
 #include "globals.h"
 #include "server.h"
+#include "sgdefs.h"
 
-typedef void(*handler)(void* vars, int signal);
+typedef void(*handler)(void* vars, Signal signal);
 
 typedef struct _timer{
 	long due;

@@ -3,6 +3,7 @@
 
 #include "server.h"
 #include "ioloop.h"
+#include "sgdefs.h"
 
 typedef Conn UDPClient;
 typedef Conn TCPClient;

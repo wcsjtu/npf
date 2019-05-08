@@ -4,7 +4,7 @@
 #include "client.h"
 #include "logger.h"
 
-static void _udp_events_handler(void* _loop, UDPClient* cli, int events, int signal){
+static void _udp_events_handler(void* _loop, UDPClient* cli, int events, Signal signal){
     pIOLoop loop = (pIOLoop)_loop;
     if(events & EPOLLIN){
         long rn = read_udpconn(loop, cli);

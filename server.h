@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include "ringbuf.h"
 #include "deque.h"
+#include "sgdefs.h"
 
 typedef int FD;
 
@@ -19,7 +20,7 @@ typedef struct _conn{
     void(*on_write)(struct _conn* conn);
     void(*on_close)(struct _conn* conn);
     long(*write)(struct _conn* conn, char* src, size_t len);
-    void(*handler)(void* loop, struct _conn* conn, int events, int signal); // 使用void* 而不是IOLoop, 是为了防止循环include, 有没有好办法？
+    void(*handler)(void* loop, struct _conn* conn, int events, Signal signal); // 使用void* 而不是IOLoop, 是为了防止循环include, 有没有好办法？
     void* extra;        // 可以是任何东西
     struct sockaddr_in addr;
 
@@ -86,13 +87,13 @@ void putback_tcpconn(Conn* conn);
 // udpconn在用完之后, 一定要记得放回去, 不然会内存泄露
 void putback_udpconn(Conn* conn);
 
-typedef void(*events_handler)(void* loop, Conn* conn, int events, int signal);
+typedef void(*events_handler)(void* loop, Conn* conn, int events, Signal signal);
 
 Conn* get_tcpconn();
 Conn* get_udpconn();
 
-void listen_handler(void* loop, Conn* conn, int events, int signal);
-void conn_handler(void* loop, Conn* conn, int events, int signal);
+void listen_handler(void* loop, Conn* conn, int events, Signal signal);
+void conn_handler(void* loop, Conn* conn, int events, Signal signal);
 
 size_t read_udpconn(void* loop, Conn* conn);
 long write_udpconn(Conn* conn, char* src, size_t len);

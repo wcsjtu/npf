@@ -201,7 +201,7 @@ static void run_ready(pIOLoop loop){
         entry = deque_popleft(loop->ready);
 		timer = (pTimer)(entry->val);
 		cb = (handler)timer->callback;
-		cb(timer->vars, 0);
+		cb(timer->vars, SG_TIMEOUT);
         dequeFreeEntry(loop->ready, entry);
 	}
 }
@@ -259,7 +259,7 @@ void dealloc_ioloop(IOLoop* loop){
 
 #ifdef TEST_TIMER
 
-void cb(void* vars, int signal){
+void cb(void* vars, Signal signal){
     logdebug("%s", (char*)vars);
     // 不需要释放内存
 }

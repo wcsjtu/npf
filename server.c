@@ -12,7 +12,7 @@
 #include "ioloop.h"
 #include "util.h"
 
-#define MAX_BUF_SIZE 10240L             // ringbuf 最大大小
+#define MAX_BUF_SIZE 65536L             // ringbuf 最大大小
 #define MAX_UDP_PACKAGE_SIZE 65535      // UDP单个数据报的最大长度
 
 

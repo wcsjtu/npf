@@ -278,6 +278,7 @@ static int _tcpserver_start(TCPServer* server){
     if(server->_sconn == NULL){
         return 0;
     }
+    server->_sconn->addr.sin_family = AF_INET;
     server->_sconn->addr.sin_port = server->port;
     // TODO 
 
@@ -499,9 +500,9 @@ void udp_listen_handler(void* _loop, Conn* sconn, int events, Signal signal){
                 putback_udpconn(cconn);
                 return;
             }
+        } else{
+            cfd = cconn->fd;            // 保存cfd, 后面要用
         }
-        
-        cfd = cconn->fd;            // 保存cfd, 后面要用
         cconn->handler = NULL;
         cconn->on_read = loop->udpserver->on_read;
         cconn->on_write = loop->udpserver->on_write;
@@ -531,6 +532,7 @@ static int _udpserver_start(UDPServer* server){
     if(server->_sconn == NULL){
         return 0;
     }
+    server->_sconn->addr.sin_family = AF_INET;
     server->_sconn->events = EPOLLIN | EPOLLERR | EPOLLET;
     loginfo("UDPSERVER:  listen port %d", server->port);
     ioloop.udpserver = server;       

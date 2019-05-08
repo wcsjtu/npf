@@ -14,8 +14,11 @@
 
 void on_resolved(void* res, Signal sg){
     ipstr ip = (ipstr)res;
-    if(sg != SG_OK)
+    if(sg != SG_OK){
+        logwarn("resolve failed");
         return;
+    }
+        
     while (ip){
         loginfo("%s", ip);
         ip = IPSTR_NEXT(ip);
@@ -24,7 +27,7 @@ void on_resolved(void* res, Signal sg){
 
 
 void test_dns(void* sdshost, Signal signal){
-    resolve("www.163.com", AF_INET, on_resolved);
+    resolve("www.163.com1", AF_INET, on_resolved);
 }
 
 void dns_timer(pIOLoop loop, long delay){

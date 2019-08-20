@@ -27,7 +27,7 @@ void on_resolved(void* res, Signal sg){
 
 
 void test_dns(void* sdshost, Signal signal){
-    resolve("www.163.com1", AF_INET, on_resolved);
+    resolve("www.163.com", AF_INET, on_resolved);
 }
 
 void dns_timer(pIOLoop loop, long delay){
@@ -43,8 +43,9 @@ void dns_timer(pIOLoop loop, long delay){
 void on_read(Conn* conn){
 	//printf("fd %d on read]\n", conn->fd);
     RBSeg seg;
-	conn->write(conn, "[Server]", 8);
-	conn->write(conn, strnow(), TIME_BUF_SIZE);
+    
+	// conn->write(conn, "[Server]", 8);
+	// conn->write(conn, strnow(), TIME_BUF_SIZE);
 	while( rb_readable(conn->rbuf, &seg) ){
 		//fwrite(seg.buf, seg.len, 1, stdout);
 		rb_start_forward(conn->rbuf, seg.len);
@@ -77,8 +78,8 @@ void on_close(Conn* conn){
     
 	loginfo("Bye %s:%d", ip, addr.sin_port);
 }
-
-
+#define MAIN
+#ifdef MAIN
 
 int main(){
     IOLoop* loop = ioloop_current();
@@ -111,3 +112,4 @@ int main(){
     loop->serve_forever(loop);
     dealloc_ioloop(loop);
 }
+#endif

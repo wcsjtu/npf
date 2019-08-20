@@ -29,6 +29,10 @@ int deque_append(pDeque deque, void* val);
 
 int deque_appendleft(pDeque deque, void* val);
 
+int deque_swap(pDeque deque, pDequeEntry e1, pDequeEntry e2);
+
+int deque_move_head(pDeque deque, pDequeEntry entry);
+
 pDequeEntry deque_pop(pDeque deque);
 
 pDequeEntry deque_popleft(pDeque deque);

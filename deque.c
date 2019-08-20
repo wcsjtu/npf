@@ -143,7 +143,58 @@ void deque_iter(pDeque deque, void(*cb)(DequeVal val)){
 
 }
 
+// 交换e1 和 e2 的位置, 返回0表示交换失败, 1表示交换成功
+int deque_swap(pDeque deque, pDequeEntry e1, pDequeEntry e2){
+	DequeEntry te1 = {0};
+	if(e1 == NULL || e2 == NULL)
+		return 0;
+	te1.next = e1->next;
+	te1.prev = e1->prev;
+	//te1.val = e1->val;
 
+	//e1->val = e2->val;
+	e1->prev->next = e2;
+	e1->next->prev = e2;
+
+	//e2->val = te1.val;
+	e2->prev->next = e1;
+	e2->next->prev = e1;
+
+	e1->prev = e2->prev;
+	e1->next = e2->next;
+
+	e2->next = te1.next;
+	e2->prev = te1.prev;
+
+	return 1;
+}
+
+int deque_move_head(pDeque deque, pDequeEntry entry){
+	DequeEntry te = {0};
+	if(deque == NULL || entry == NULL)
+		return 0;
+	if(deque->count <= 1 || deque->head == entry)
+		return 1;
+	if(deque->tail == entry){
+		deque->head = entry;
+		deque->tail = entry->prev;
+		return 1;
+	}
+
+	// 把entry从原来的位置移除
+	entry->prev->next = entry->next;
+	entry->next->prev = entry->prev;
+
+	entry->next = deque->head;
+	entry->prev = deque->tail;
+	
+	deque->head->prev = entry;
+	deque->tail->next = entry;
+
+	deque->head = entry;
+	deque->tail = entry->prev;
+	return 1;
+}
 
 #ifdef TEST_DEQUE
 

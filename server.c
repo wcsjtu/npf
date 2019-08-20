@@ -33,6 +33,21 @@ int setnonblocking(FD fd )
 
 // Conn define
 
+static void _shift_events(pIOLoop loop, Conn* conn){
+    int new_events = EPOLLERR | EPOLLET;
+    if( !rb_empty(conn->wbuf) ){
+		new_events |= EPOLLOUT;
+	}
+    if(!rb_full(conn->rbuf)){
+		new_events |= EPOLLIN;
+	}
+    if (new_events != conn->events){
+		conn->events = new_events;
+        loop->conn_modregister(loop, conn);
+	}
+}
+
+
 // 写入缓存
 static long write_to_buf(Conn* conn, char* src, size_t len){
 	RBSeg seg;
@@ -47,8 +62,11 @@ static long write_to_buf(Conn* conn, char* src, size_t len){
 	
 	while(wn < len){
 		if(!rb_writable(conn->wbuf, &seg)){
+            _shift_events(loop, conn);
 			loop->serve_once(loop);
 		} else{
+            if(!VALID_CONN(conn))   // 在loop->serve_once里面, Conn可能会被关掉
+                return 0;
 			n = MIN(seg.len, len - wn);
 			memcpy(seg.buf, src + wn, n);
 			rb_end_forward(conn->wbuf, n);
@@ -394,13 +412,17 @@ void listen_handler(void* _loop, Conn* sconn, int events, Signal signal){
 void conn_handler(void* _loop, Conn* conn, int events, Signal signal){
     pIOLoop loop = (pIOLoop)_loop;
     long rn = 0;
-    int new_events = EPOLLERR | EPOLLET, fd = conn->fd;
+    int fd = conn->fd;
     // event handle
     if(events & EPOLLERR){
 		logerror("fd %d error: errno=%d", fd, errno);
 		close_tcpconn(_loop, conn);
         _putback_conn(&_tcp_conn_cache, conn);
 		return;
+	}
+
+    if(events & EPOLLOUT){
+		_write_tcpconn(loop, conn);
 	}
 
     if(events & EPOLLIN){
@@ -413,22 +435,8 @@ void conn_handler(void* _loop, Conn* conn, int events, Signal signal){
 			return;
 		}
 	}
+    _shift_events(loop, conn);
 
-    if(events & EPOLLOUT){
-		_write_tcpconn(loop, conn);
-	}
-
-    // new event
-    if( !rb_empty(conn->wbuf) ){
-		new_events |= EPOLLOUT;
-	}
-    if(!rb_full(conn->rbuf)){
-		new_events |= EPOLLIN;
-	}
-    if (new_events != conn->events){
-		conn->events = new_events;
-        loop->conn_modregister(loop, conn);
-	}
 }
 
 void close_udpconn(void* _loop, Conn* conn){

@@ -26,6 +26,8 @@ typedef struct _conn{
 
 } Conn;
 
+#define VALID_CONN(conn) (conn->fd > 0 ? 1 : 0)
+
 struct ConnCache{
     // 这个available是个动态平衡的指标。 每get一个conn, 就会--, put一个就会++
     // 当available < 0 时, 每次put/get都会分配/释放内存, 所以要根据业务场景, 选择合适的初始available

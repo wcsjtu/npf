@@ -22,12 +22,12 @@ struct ConnCache _udp_conn_cache = {0};
 
 int setnonblocking(FD fd )
 {
-	if( fcntl( fd, F_SETFL, fcntl( fd, F_GETFD, 0 )|O_NONBLOCK ) == -1 )
-	{
-		logerror("Set blocking error : %d\n", errno);
-		return -1;
-	}
-	return 0;
+    if( fcntl( fd, F_SETFL, fcntl( fd, F_GETFD, 0 )|O_NONBLOCK ) == -1 )
+    {
+        logerror("Set blocking error : %d\n", errno);
+        return -1;
+    }
+    return 0;
 }
 
 
@@ -36,43 +36,43 @@ int setnonblocking(FD fd )
 static void _shift_events(pIOLoop loop, Conn* conn){
     int new_events = EPOLLERR | EPOLLET;
     if( !rb_empty(conn->wbuf) ){
-		new_events |= EPOLLOUT;
-	}
+        new_events |= EPOLLOUT;
+    }
     if(!rb_full(conn->rbuf)){
-		new_events |= EPOLLIN;
-	}
+        new_events |= EPOLLIN;
+    }
     if (new_events != conn->events){
-		conn->events = new_events;
+        conn->events = new_events;
         loop->conn_modregister(loop, conn);
-	}
+    }
 }
 
 
 // 写入缓存
 static long write_to_buf(Conn* conn, char* src, size_t len){
-	RBSeg seg;
-	size_t wn = 0, n = 0;
-	pIOLoop loop = ioloop_current();
-	if(len <= 0)
-		return 0;
-	if(!(conn->events & EPOLLOUT)){
-		conn->events |= EPOLLOUT;
-		loop->conn_modregister(loop, conn);
-	}
-	
-	while(wn < len){
-		if(!rb_writable(conn->wbuf, &seg)){
+    RBSeg seg;
+    size_t wn = 0, n = 0;
+    pIOLoop loop = ioloop_current();
+    if(len <= 0)
+        return 0;
+    if(!(conn->events & EPOLLOUT)){
+        conn->events |= EPOLLOUT;
+        loop->conn_modregister(loop, conn);
+    }
+    
+    while(wn < len){
+        if(!rb_writable(conn->wbuf, &seg)){
             _shift_events(loop, conn);
-			loop->serve_once(loop);
-		} else{
+            loop->serve_once(loop);
+        } else{
             if(!VALID_CONN(conn))   // 在loop->serve_once里面, Conn可能会被关掉
                 return 0;
-			n = MIN(seg.len, len - wn);
-			memcpy(seg.buf, src + wn, n);
-			rb_end_forward(conn->wbuf, n);
-			wn += n;
-		}
-	}
+            n = MIN(seg.len, len - wn);
+            memcpy(seg.buf, src + wn, n);
+            rb_end_forward(conn->wbuf, n);
+            wn += n;
+        }
+    }
     return wn;
 }
 
@@ -88,11 +88,11 @@ static Conn* _new_conn(
         return NULL;
     }
 
-	if( (conn = (Conn*)malloc(sizeof(Conn))) == NULL ){
-		return NULL;
-	}
+    if( (conn = (Conn*)malloc(sizeof(Conn))) == NULL ){
+        return NULL;
+    }
     memset(conn, 0, sizeof(Conn));
-	conn->fd = fd;
+    conn->fd = fd;
     if(rbsize){
         conn->rbuf = new_ringbuf(rbsize);
         if(conn->rbuf == NULL){
@@ -100,7 +100,7 @@ static Conn* _new_conn(
             return NULL;
         }
     }
-	if(wbsize){
+    if(wbsize){
         conn->wbuf = new_ringbuf(wbsize);
         if(conn->rbuf == NULL){
             free(conn);
@@ -109,7 +109,7 @@ static Conn* _new_conn(
         }
     }
     conn->handler = handler;
-	return conn;
+    return conn;
 }
 
 #define _NEW_TCP_CONN(fd, h) _new_conn(fd, h, MAX_BUF_SIZE, MAX_BUF_SIZE)
@@ -121,13 +121,13 @@ static void _dealloc_conn(Conn* conn){
         close(conn->fd);
         conn->fd = -1;
     }
-	if(conn->rbuf){
-		dealloc_ringbuf(conn->rbuf);
-	}
-	if(conn->wbuf){
-		dealloc_ringbuf(conn->wbuf);
-	}
-	free(conn);
+    if(conn->rbuf){
+        dealloc_ringbuf(conn->rbuf);
+    }
+    if(conn->wbuf){
+        dealloc_ringbuf(conn->wbuf);
+    }
+    free(conn);
 }
 
 // 清空conn中的数据, 但是保留buf和打开的fd(>0)
@@ -206,75 +206,79 @@ void putback_udpconn(Conn* conn){
 void close_tcpconn(void* _loop, Conn* conn){
     pIOLoop loop = (pIOLoop)_loop;
     loop->conn_unregister(loop, conn);
-	close(conn->fd);
+    close(conn->fd);
     conn->fd = -1;              // 将fd设置为无效。 可以对比下close_udpconn, 它不关闭fd
     if(conn->on_close)
         conn->on_close(conn);		//	执行回调
 }
 
 static size_t _read_tcpconn(pIOLoop loop, Conn* connection){
-	RBSeg seg;
-	long rn = 0, total = 0;
-	int fd = connection->fd;
-	while( rb_writable(connection->rbuf, &seg) ){
-		rn = read(fd, seg.buf, seg.len);
-		if(rn < 0){
-			if(errno == EAGAIN)
-				break;
-			return 0;
-		}
-		else if(rn == 0){
-			return 0;
-		}
-		else{
-			total += rn;
-			rb_end_forward(connection->rbuf, rn);
-			if(rn < seg.len)
-				break;
-		}
-	}
-	return total;
+    RBSeg seg;
+    long rn = 0, total = 0;
+    int fd = connection->fd;
+    while( rb_writable(connection->rbuf, &seg) ){
+        rn = read(fd, seg.buf, seg.len);
+        if(rn < 0){
+            if(errno == EAGAIN)
+                break;
+            return 0;
+        }
+        else if(rn == 0){
+            return 0;
+        }
+        else{
+            total += rn;
+            rb_end_forward(connection->rbuf, rn);
+            if(rn < seg.len)
+                break;
+        }
+    }
+    return total;
 }
 
 static size_t _write_tcpconn(pIOLoop loop, Conn* connection){
-	RBSeg seg;
-	long wn = 0, total=0;
-	int fd = connection->fd;
-	while( rb_readable(connection->wbuf, &seg) ){
-		wn = write(fd, seg.buf, seg.len);
-		if(wn < 0 ){
-			if(errno == EAGAIN){
-				break;
-			}
-			close_tcpconn(loop, connection);
+    RBSeg seg;
+    long wn = 0, total=0;
+    int fd = connection->fd;
+    while( rb_readable(connection->wbuf, &seg) ){
+        wn = write(fd, seg.buf, seg.len);
+        if(wn < 0 ){
+            if(errno == EAGAIN){
+                break;
+            }
+            close_tcpconn(loop, connection);
             _putback_conn(&_tcp_conn_cache, connection);
-			return 0;
-		}
-		total += wn;
-		rb_start_forward(connection->wbuf, wn);
-	}
-	return total;
+            return 0;
+        }
+        total += wn;
+        rb_start_forward(connection->wbuf, wn);
+    }
+    return total;
 }
 
 static FD _create_bind(in_addr_t addr, int socktype, unsigned short port){
     FD listen_fd;
     struct sockaddr_in saddr;
-	memset(&saddr, 0, sizeof(saddr));
+    memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_addr.s_addr = htonl(addr);
     saddr.sin_port = htons(port);
     if( (listen_fd = socket(AF_INET, socktype, 0)) == -1 ){
-		logerror("failed to create server socket!");
-		return -1;
-	}
+        logerror("failed to create server socket!");
+        return -1;
+    }
     if(-1 == setnonblocking(listen_fd)){
-		return -1;
-	}
+        return -1;
+    }
+    if(setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
+        logerror("set REUSE_ADDR to listen fd error: %d", errno);
+        return -1;
+    }
     if (  bind(listen_fd, (struct sockaddr*)&saddr, sizeof(struct sockaddr)) == -1 ){
-		logerror("fail to bind server socket");
-		return -1;
-	}
-	return listen_fd;
+        logerror("fail to bind server socket");
+        return -1;
+    }
+    return listen_fd;
 }
 
 // TCPServer definition
@@ -284,14 +288,11 @@ static int _tcpserver_start(TCPServer* server){
     if(server->listenfd == -1){
         return 0;
     }
-    if(setsockopt(server->listenfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
-		logerror("set REUSE_ADDR to listen fd error: %d", errno);
-		return 0;
-	}
+    
     if(listen(server->listenfd, server->backlog) == -1){
-		logerror("listen port %d error: errno=%d", server->port, errno);
-		return 0;
-	}
+        logerror("listen port %d error: errno=%d", server->port, errno);
+        return 0;
+    }
     server->_sconn = _new_conn(server->listenfd, listen_handler, 0, 0);
     if(server->_sconn == NULL){
         return 0;
@@ -326,9 +327,9 @@ TCPServer* new_tcpserver(onfunc on_read, onfunc on_write, onfunc on_close){
     server->start = _tcpserver_start;
     server->bind = _tcpserver_bind;
     server->listen = _tcpserver_listen;
-	server->on_read = on_read;
-	server->on_write = on_write;
-	server->on_close = on_close;
+    server->on_read = on_read;
+    server->on_write = on_write;
+    server->on_close = on_close;
     return server;
 }
 
@@ -387,9 +388,9 @@ void listen_handler(void* _loop, Conn* sconn, int events, Signal signal){
         }
         int conn_fd = accept(fd, (struct sockaddr*)&(cconn->addr), &len);
         if(conn_fd == -1){
-			logwarn("accept new connect error");
-			return;
-		}
+            logwarn("accept new connect error");
+            return;
+        }
 
         cconn->fd = conn_fd;
         cconn->events = EPOLLIN | EPOLLET | EPOLLERR;
@@ -405,7 +406,7 @@ void listen_handler(void* _loop, Conn* sconn, int events, Signal signal){
     }
     if(events & EPOLLERR){
         logerror("listen fd error: errno=%d", errno);
-		exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -415,26 +416,26 @@ void conn_handler(void* _loop, Conn* conn, int events, Signal signal){
     int fd = conn->fd;
     // event handle
     if(events & EPOLLERR){
-		logerror("fd %d error: errno=%d", fd, errno);
-		close_tcpconn(_loop, conn);
+        logerror("fd %d error: errno=%d", fd, errno);
+        close_tcpconn(_loop, conn);
         _putback_conn(&_tcp_conn_cache, conn);
-		return;
-	}
+        return;
+    }
 
     if(events & EPOLLOUT){
-		_write_tcpconn(loop, conn);
-	}
+        _write_tcpconn(loop, conn);
+    }
 
     if(events & EPOLLIN){
-		rn = _read_tcpconn(loop, conn);
-		if(rn > 0){
-			conn->on_read(conn);
-		}else{
-			close_tcpconn(_loop, conn);
+        rn = _read_tcpconn(loop, conn);
+        if(rn > 0){
+            conn->on_read(conn);
+        }else{
+            close_tcpconn(_loop, conn);
             _putback_conn(&_tcp_conn_cache, conn);
-			return;
-		}
-	}
+            return;
+        }
+    }
     _shift_events(loop, conn);
 
 }
@@ -444,35 +445,35 @@ void close_udpconn(void* _loop, Conn* conn){
     loop->conn_unregister(loop, conn);    // 不使用listen fd了
     //close(conn->fd);                    // 为了复用fd, 这里不能关闭fd
     if(conn->on_close)
-	    conn->on_close(conn);		//	执行回调
-	
+        conn->on_close(conn);		//	执行回调
+    
 }
 
 // 将数据从socket读到read buffer中
 size_t read_udpconn(void* _loop, Conn* conn){
     RBSeg seg;
-	long rn = 0, total = 0;
-	int fd = conn->fd;
+    long rn = 0, total = 0;
+    int fd = conn->fd;
     socklen_t	len = sizeof( struct sockaddr_in );
-	while( rb_writable(conn->rbuf, &seg) ){
-		rn = recvfrom(fd, seg.buf, seg.len, 0, (struct sockaddr *)&(conn->addr), &len);
-		if(rn < 0){
+    while( rb_writable(conn->rbuf, &seg) ){
+        rn = recvfrom(fd, seg.buf, seg.len, 0, (struct sockaddr *)&(conn->addr), &len);
+        if(rn < 0){
             logwarn("recvfrom error, errno=%d", errno);
-			if(errno == EAGAIN)
-				break;
-			return 0;
-		}
-		else if(rn == 0){
-			return total;
-		}
-		else{
-			total += rn;
-			rb_end_forward(conn->rbuf, rn);
-			if(rn < seg.len)
-				break;
-		}
-	}
-	return total;
+            if(errno == EAGAIN)
+                break;
+            return 0;
+        }
+        else if(rn == 0){
+            return total;
+        }
+        else{
+            total += rn;
+            rb_end_forward(conn->rbuf, rn);
+            if(rn < seg.len)
+                break;
+        }
+    }
+    return total;
 }
 
 // 因为udp conn不提供write buffer, 所以调用这个函数, 会直接写socket
@@ -532,9 +533,9 @@ static int _udpserver_start(UDPServer* server){
         return 0;
     }
     // if(setsockopt(server->listenfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
-	// 	logerror("set REUSE_ADDR to listen fd error: %d", errno);
-	// 	return 0;
-	// }
+    // 	logerror("set REUSE_ADDR to listen fd error: %d", errno);
+    // 	return 0;
+    // }
     
     server->_sconn = _new_conn(server->listenfd, udp_listen_handler, 0, 0);
     if(server->_sconn == NULL){
@@ -558,9 +559,9 @@ UDPServer* new_udpserver(onfunc on_read, onfunc on_write, onfunc on_close){
     server->start = _udpserver_start;
     server->bind = _udpserver_bind;
     server->listen = NULL;
-	server->on_read = on_read;
-	server->on_write = on_write;
-	server->on_close = on_close;
+    server->on_read = on_read;
+    server->on_write = on_write;
+    server->on_close = on_close;
     return server;
 }
 

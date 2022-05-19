@@ -10,11 +10,11 @@ typedef int FD;
 
 typedef struct _conn{
 
-	FD fd;
-	int events;
+    FD fd;
+    int events;
     int registered;     // 是否注册到了epoll
-	pRingBuf rbuf;
-	pRingBuf wbuf;
+    pRingBuf rbuf;
+    pRingBuf wbuf;
 
     void(*on_read)(struct _conn* conn);
     void(*on_write)(struct _conn* conn);
@@ -40,8 +40,8 @@ typedef void(*write_conn_func)(Conn* conn, char* src, size_t len);
 
 typedef struct  _tcpserver{
     unsigned short port;
-	unsigned short backlog;
-	in_addr_t addr;
+    unsigned short backlog;
+    in_addr_t addr;
     FD listenfd;
     Conn* _sconn;       // fake conn obj
     int(*start)(struct _tcpserver* server);

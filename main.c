@@ -41,31 +41,31 @@ void dns_timer(pIOLoop loop, long delay){
 // server
 
 void on_read(Conn* conn){
-	//printf("fd %d on read]\n", conn->fd);
+    //printf("fd %d on read]\n", conn->fd);
     RBSeg seg;
     
-	// conn->write(conn, "[Server]", 8);
-	// conn->write(conn, strnow(), TIME_BUF_SIZE);
-	while( rb_readable(conn->rbuf, &seg) ){
-		//fwrite(seg.buf, seg.len, 1, stdout);
-		rb_start_forward(conn->rbuf, seg.len);
-		conn->write(conn, seg.buf, seg.len);
-	}
+    // conn->write(conn, "[Server]", 8);
+    // conn->write(conn, strnow(), TIME_BUF_SIZE);
+    while( rb_readable(conn->rbuf, &seg) ){
+        //fwrite(seg.buf, seg.len, 1, stdout);
+        rb_start_forward(conn->rbuf, seg.len);
+        conn->write(conn, seg.buf, seg.len);
+    }
 }
 
 void on_udpread(Conn* conn){
-	RBSeg seg;
-	while( rb_readable(conn->rbuf, &seg) ){
-		//fwrite(seg.buf, seg.len, 1, stdout);
-		rb_start_forward(conn->rbuf, seg.len);
-		conn->write(conn, seg.buf, seg.len);
-	}
+    RBSeg seg;
+    while( rb_readable(conn->rbuf, &seg) ){
+        //fwrite(seg.buf, seg.len, 1, stdout);
+        rb_start_forward(conn->rbuf, seg.len);
+        conn->write(conn, seg.buf, seg.len);
+    }
     close_udpconn(ioloop_current(), conn);
-	putback_udpconn(conn);
+    putback_udpconn(conn);
 }
 
 void on_write(Conn* conn){
-	logdebug("all data were written to buffer");
+    logdebug("all data were written to buffer");
 }
 
 void on_close(Conn* conn){
@@ -76,7 +76,7 @@ void on_close(Conn* conn){
         return;
     }
     
-	loginfo("Bye %s:%d", ip, addr.sin_port);
+    loginfo("Bye %s:%d", ip, addr.sin_port);
 }
 #define MAIN
 #ifdef MAIN
@@ -94,17 +94,17 @@ int main(){
         return -1;
     }
 
-	UDPServer* udpserver = new_udpserver(on_udpread, on_write, on_close);
-	udpserver->bind(udpserver, 0, 28080);
+    UDPServer* udpserver = new_udpserver(on_udpread, on_write, on_close);
+    udpserver->bind(udpserver, 0, 28080);
 
-	if(!udpserver->start(udpserver)){
-		dealloc_udpserver(udpserver);
-		return -1;
-	}
+    if(!udpserver->start(udpserver)){
+        dealloc_udpserver(udpserver);
+        return -1;
+    }
 
 
-    set_loglevel(LOGLV_INFO);
-	init_conn_cache(100);
+    set_loglevel(LOGLV_DEBUG);
+    init_conn_cache(100);
     init_dns_cache(1 << 6);
 
     dns_timer(loop, 5);

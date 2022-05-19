@@ -4,21 +4,21 @@
 typedef void* DequeVal;
 
 typedef struct _dequetype{
-	void*(*dequeValDup)(void* val);
-	void(*dequeValFree)(void* val);
+    void*(*dequeValDup)(void* val);
+    void(*dequeValFree)(void* val);
 } DequeType, *pDequeType ;
 
 typedef struct _deqentry{
-	void* val;
-	struct _deqentry* prev;
-	struct _deqentry* next;
+    void* val;
+    struct _deqentry* prev;
+    struct _deqentry* next;
 } DequeEntry, *pDequeEntry;
 
 typedef struct _deque{
-	pDequeType type;
-	pDequeEntry head;
-	pDequeEntry tail;
-	size_t count;
+    pDequeType type;
+    pDequeEntry head;
+    pDequeEntry tail;
+    size_t count;
 }Deque, *pDeque;
 
 pDeque new_deque(pDequeType type);
@@ -40,8 +40,8 @@ pDequeEntry deque_popleft(pDeque deque);
 size_t deque_size(pDeque deque);
 
 #define dequeFreeEntry(deque, val)  do {\
-	if(deque->type->dequeValFree)\
-		deque->type->dequeValFree(val);\
+    if(deque->type->dequeValFree)\
+        deque->type->dequeValFree(val);\
 } while(0)
 
 #endif

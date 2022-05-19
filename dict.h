@@ -7,29 +7,29 @@ typedef void* pValue;
 typedef void* pKey;
 
 typedef struct _entry{
-	pKey key;
-	long hash;
-	pValue val;
+    pKey key;
+    long hash;
+    pValue val;
 } DictEntry, *pDictEntry;
 
 
 typedef struct _DictType{
-	long(*hash)(void* key);
-	void* (*keyDup)(void* key);
-	void* (*valDup)(void* val);
-	int(*keyEq)(void *key1, void *key2);
-	void(*keyFree)(pDictEntry entry, void* key);
-	void(*valFree)(void* val);
+    long(*hash)(void* key);
+    void* (*keyDup)(void* key);
+    void* (*valDup)(void* val);
+    int(*keyEq)(void *key1, void *key2);
+    void(*keyFree)(pDictEntry entry, void* key);
+    void(*valFree)(void* val);
 }DictType, *pDictType;
 
 
 
 typedef struct _dict{
-	size_t fill;
-	size_t mask;
-	size_t active;
-	pDictType type;
-	pDictEntry table;
+    size_t fill;
+    size_t mask;
+    size_t active;
+    pDictType type;
+    pDictEntry table;
 } Dict, *pDict;
 
 
@@ -49,30 +49,30 @@ typedef struct _dict{
 
 
 #define dictFreeKey(d, entry, key) do { \
-	if((d)->type->keyFree)  \
-		(d)->type->keyFree(entry, key); \
+    if((d)->type->keyFree)  \
+        (d)->type->keyFree(entry, key); \
 } while (0)
 
 #define dictFreeVal(d, entry) do {\
-	if ((d)->type->valFree)\
-		(d)->type->valFree((entry)->val);\
+    if ((d)->type->valFree)\
+        (d)->type->valFree((entry)->val);\
 } while (0);
 
 
 #define dictSetKey(d, entry, key) do{\
-	if((d)->type->keyDup){\
-		entry->key= (d)->type->keyDup(key);\
-	} else{\
-		entry->key = (key);\
-	}\
-	entry->hash=(d)->type->hash(entry->key);\
+    if((d)->type->keyDup){\
+        entry->key= (d)->type->keyDup(key);\
+    } else{\
+        entry->key = (key);\
+    }\
+    entry->hash=(d)->type->hash(entry->key);\
 }while (0)
 
 #define dictSetVal(d, entry, val) do{\
-	if ((d)->type->valDup) \
-		entry->val = (d)->type->valDup(val);\
-	else\
-		entry->val = (val);\
+    if ((d)->type->valDup) \
+        entry->val = (d)->type->valDup(val);\
+    else\
+        entry->val = (val);\
 }while (0)
 
 #define dictKeyCmp(d, key1, key2) ( (d)->type->keyEq ? (d)->type->keyEq(key1, key2) : (key1)==(key2) )

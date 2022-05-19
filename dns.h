@@ -162,7 +162,7 @@ typedef struct  _parser{
 #define MAX_HOST_LENGTH 255
 
 #define DNS_REQ_SIZE(host_length) (DNS_REQ_HEADER_LEN + \
-	DNS_REQ_TAIL_LEN + (host_length) + 1)	//n个点对应着n+1段的长度, 再加上\x00结束符
+    DNS_REQ_TAIL_LEN + (host_length) + 1)	//n个点对应着n+1段的长度, 再加上\x00结束符
 
 
 sds build_dns_request(const char* hostname, size_t length, unsigned short qtype, unsigned short id);

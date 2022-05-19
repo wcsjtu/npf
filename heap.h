@@ -7,18 +7,18 @@ typedef void* HeapEntry;
 typedef HeapEntry* pHeapEntry;
 
 typedef struct _heaptype{
-	int(*ecmp)(HeapEntry e1, HeapEntry e2);
-	void(*efree)(void* ep);
-	void*(*edup)(void* ep);
-	int(*evalid)(void* ep);	// entry是否有效
+    int(*ecmp)(HeapEntry e1, HeapEntry e2);
+    void(*efree)(void* ep);
+    void*(*edup)(void* ep);
+    int(*evalid)(void* ep);	// entry是否有效
 } HeapType, *pHeapType;
 
 typedef struct _heap{
 
-	pHeapType type;
-	size_t capacity;
-	size_t used;
-	pHeapEntry buf;
+    pHeapType type;
+    size_t capacity;
+    size_t used;
+    pHeapEntry buf;
 }Heap, *pHeap;
 
 #define MAX_HEAP_SIZE 1 << 20
@@ -28,16 +28,16 @@ typedef struct _heap{
 
 
 #define heapFreeEntry(hp, ep) do {\
-	if(hp->type->efree && ep)\
-		hp->type->efree(ep);\
+    if(hp->type->efree && ep)\
+        hp->type->efree(ep);\
 } while (0)
 
 #define heapEntryCmp(hp, i, j) ( hp->type->ecmp( hp->buf[i], hp->buf[j]) )
 
 #define swapHeapEntry(hp, i, j) do {\
-	HeapEntry tmp = hp->buf[i];\
-	hp->buf[i] = hp->buf[j];\
-	hp->buf[j] = tmp;\
+    HeapEntry tmp = hp->buf[i];\
+    hp->buf[i] = hp->buf[j];\
+    hp->buf[j] = tmp;\
 } while (0)
 
 #define invalidHeapEntry(heap, entry) ( heap->type->evalid && !heap->type->evalid(entry) )

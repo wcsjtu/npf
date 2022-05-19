@@ -8,7 +8,7 @@
 pDict dns_cache = NULL;
 pDict dns_cache_v6 = NULL;
 
-static const char* DNS_SERVER = "10.246.3.33";
+static const char* DNS_SERVER = "114.114.114.114";
 static const unsigned short DNS_PORT = 53;
 
 sds new_sds(size_t sz){

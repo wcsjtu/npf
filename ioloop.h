@@ -13,9 +13,9 @@
 typedef void(*handler)(void* vars, Signal signal);
 
 typedef struct _timer{
-	long due;
-	handler callback;
-	void* vars;         // 如果有必要, 请在callback中释放内存
+    long due;
+    handler callback;
+    void* vars;         // 如果有必要, 请在callback中释放内存
 } Timer, *pTimer;
 
 
@@ -28,7 +28,7 @@ typedef struct _ioloop{
     size_t timer_cancels;
     pDict connections;
     FD efd;
-	size_t fd_count;
+    size_t fd_count;
 
     TCPServer* tcpserver;
     UDPServer* udpserver;
